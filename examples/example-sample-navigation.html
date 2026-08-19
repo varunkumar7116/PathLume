@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NavCat GLB Navigation Test</title>
+  <link rel="stylesheet" href="./src/example.css">
+  <style>
+    #hud {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      background: rgba(15, 23, 42, 0.92);
+      color: #f8fafc;
+      padding: 16px 20px;
+      border-radius: 12px;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      width: 400px;
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      z-index: 100;
+    }
+    #hud h2 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      font-weight: 700;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .hud-section {
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .hud-section:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+    .hud-title {
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+    .hud-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      gap: 12px;
+    }
+    .hud-label {
+      color: #cbd5e1;
+    }
+    .hud-value {
+      font-family: monospace;
+      color: #f1f5f9;
+      font-weight: 600;
+    }
+    .hud-value.highlight {
+      color: #4ade80;
+    }
+    .hud-value.warn {
+      color: #fbbf24;
+    }
+    .hud-value.danger {
+      color: #f87171;
+    }
+    .btn-group {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      flex: 1;
+      min-width: 90px;
+      padding: 7px 10px;
+      background: #334155;
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 12px;
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+    .btn:hover {
+      background: #475569;
+    }
+    .btn.active {
+      background: #0284c7;
+      border-color: #38bdf8;
+    }
+    .btn.preset {
+      background: #1e293b;
+      border-color: #475569;
+      font-size: 11px;
+      padding: 5px 8px;
+    }
+    .btn.preset:hover {
+      background: #334155;
+    }
+    .btn.danger {
+      background: #991b1b;
+      border-color: #ef4444;
+    }
+    .btn.danger:hover {
+      background: #dc2626;
+    }
+    .instruction-badge {
+      display: block;
+      padding: 6px 10px;
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 6px;
+      font-size: 11px;
+      margin-top: 8px;
+      text-align: center;
+    }
+    select {
+      width: 100%;
+      padding: 8px;
+      background: #1e293b;
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <div id="hud">
+    <h2>🗺️ NavCat GLB Navigation Demo</h2>
+    
+    <!-- Model Selection -->
+    <div class="hud-section">
+      <div class="hud-title">Active Model</div>
+      <select id="select-model">
+        <option value="./models/sample1.glb" selected>sample1.glb (Photogrammetry Scan)</option>
+        <option value="./models/sample.glb">sample.glb</option>
+      </select>
+    </div>
+
+    <!-- Navigation Tools -->
+    <div class="hud-section">
+      <div class="hud-title">Navigation Tools</div>
+      <div class="btn-group">
+        <button id="btn-set-start" class="btn">Set Start</button>
+        <button id="btn-set-dest" class="btn">Set Destination</button>
+        <button id="btn-clear-nav" class="btn danger">Clear Nav</button>
+      </div>
+      <div id="mode-instruction" class="instruction-badge">Click "Set Start" or "Set Destination", then click floor</div>
+    </div>
+
+    <!-- Indoor AR Navigation Engine -->
+    <div class="hud-section">
+      <div class="hud-title">Indoor AR Navigation System</div>
+      <div class="hud-row" style="margin-bottom:6px;">
+        <span class="hud-label">Destination Node:</span>
+      </div>
+      <select id="select-destination">
+        <option value="">-- Select Room/Destination --</option>
+        <option value="room_101">Room 101 (Conference A)</option>
+        <option value="room_102">Room 102 (Lab)</option>
+        <option value="room_103">Room 103 (Office B)</option>
+        <option value="room_104">Room 104 (Auditorium)</option>
+        <option value="room_105">Room 105 (Cafeteria)</option>
+        <option value="stairs_floor1">Stairwell Floor 1</option>
+        <option value="elevator_floor1">Elevator Floor 1</option>
+      </select>
+      
+      <div class="hud-row" style="margin-top:6px;"><span class="hud-label">Status:</span><span id="nav-engine-status" class="hud-value highlight">IDLE</span></div>
+      <div class="hud-row"><span class="hud-label">Current Dest:</span><span id="nav-engine-dest" class="hud-value">-</span></div>
+      <div class="hud-row"><span class="hud-label">Dist Remaining:</span><span id="nav-engine-dist-rem" class="hud-value highlight">-</span></div>
+      <div class="hud-row"><span class="hud-label">User Pos (X, Y, Z):</span><span id="nav-engine-coords" class="hud-value">-</span></div>
+
+      <div class="hud-title" style="margin-top:10px;">Mock Positioning Simulation</div>
+      <div class="btn-group">
+        <button id="btn-start-mock-walk" class="btn" style="background:#059669;">🚶 Walk Route</button>
+        <button id="btn-pause-mock-walk" class="btn">⏸️ Pause</button>
+        <button id="btn-simulate-offroute" class="btn" style="background:#d97706;">⚠️ Off-Route</button>
+      </div>
+    </div>
+
+    <!-- Debug Controls -->
+    <div class="hud-section">
+      <div class="hud-title">Graph Calibration & Debug Mode</div>
+      <button id="btn-toggle-graph-debug" class="btn preset" style="width:100%;">🛠️ Toggle Graph Nodes & Edges Overlay</button>
+    </div>
+
+    <!-- NavMesh Presets -->
+    <div class="hud-section">
+      <div class="hud-title">NavMesh Presets</div>
+      <div class="btn-group">
+        <button id="btn-preset-1" class="btn preset">Preset 1 (Default)</button>
+        <button id="btn-preset-2" class="btn preset">Preset 2 (Conservative)</button>
+        <button id="btn-preset-3" class="btn preset">Preset 3 (Photogrammetry)</button>
+      </div>
+    </div>
+
+    <!-- Model Geometry Analysis -->
+    <div class="hud-section">
+      <div class="hud-title">Model Geometry Diagnostics</div>
+      <div class="hud-row"><span class="hud-label">Mesh Count:</span><span id="stat-meshes" class="hud-value">-</span></div>
+      <div class="hud-row"><span class="hud-label">Total Vertices:</span><span id="stat-vertices" class="hud-value">-</span></div>
+      <div class="hud-row"><span class="hud-label">Total Triangles:</span><span id="stat-triangles" class="hud-value">-</span></div>
+      <div class="hud-row"><span class="hud-label">Upward Triangles:</span><span id="stat-up-triangles" class="hud-value highlight">-</span></div>
+      <div class="hud-row"><span class="hud-label">Downward Triangles:</span><span id="stat-down-triangles" class="hud-value warn">-</span></div>
+      <div class="hud-row"><span class="hud-label">Vertical/Steep:</span><span id="stat-vertical-triangles" class="hud-value">-</span></div>
+      <div class="hud-row"><span class="hud-label">Dimensions (X × Y × Z):</span><span id="stat-bbox" class="hud-value">-</span></div>
+      <div class="hud-row"><span class="hud-label">Floor Level (Y Min):</span><span id="stat-ymin" class="hud-value highlight">-</span></div>
+    </div>
+
+    <!-- NavMesh Statistics -->
+    <div class="hud-section">
+      <div class="hud-title">NavMesh Generation Stats</div>
+      <div class="hud-row"><span class="hud-label">Status:</span><span id="stat-nav-gen" class="hud-value">-</span></div>
+      <div class="hud-row"><span class="hud-label">Polygon Count:</span><span id="stat-polys" class="hud-value highlight">-</span></div>
+      <div class="hud-row"><span class="hud-label">Build Time:</span><span id="stat-build-time" class="hud-value">-</span></div>
+    </div>
+
+    <!-- Start Location -->
+    <div class="hud-section">
+      <div class="hud-title">Start Location</div>
+      <div class="hud-row"><span class="hud-label">Raw (X, Y, Z):</span><span id="start-raw" class="hud-value">-</span></div>
+      <div class="hud-row"><span class="hud-label">Nearest Poly ID:</span><span id="start-poly-id" class="hud-value highlight">-</span></div>
+      <div class="hud-row"><span class="hud-label">Snapped (X, Y, Z):</span><span id="start-snapped" class="hud-value highlight">-</span></div>
+    </div>
+
+    <!-- Destination Location -->
+    <div class="hud-section">
+      <div class="hud-title">Destination Location</div>
+      <div class="hud-row"><span class="hud-label">Raw (X, Y, Z):</span><span id="dest-raw" class="hud-value">-</span></div>
+      <div class="hud-row"><span class="hud-label">Nearest Poly ID:</span><span id="dest-poly-id" class="hud-value highlight">-</span></div>
+      <div class="hud-row"><span class="hud-label">Snapped (X, Y, Z):</span><span id="dest-snapped" class="hud-value highlight">-</span></div>
+    </div>
+
+    <!-- Pathfinding Results -->
+    <div class="hud-section">
+      <div class="hud-title">Pathfinding Results</div>
+      <div class="hud-row"><span class="hud-label">Path Found:</span><span id="path-found" class="hud-value">-</span></div>
+      <div class="hud-row"><span class="hud-label">Total Distance:</span><span id="path-distance" class="hud-value highlight">-</span></div>
+      <div class="hud-row"><span class="hud-label">Waypoints Count:</span><span id="path-waypoints" class="hud-value">-</span></div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/example-sample-navigation.ts"></script>
+</body>
+</html>

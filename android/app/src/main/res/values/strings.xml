@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">PathLume</string>
+    <string name="app_tagline">Universal Indoor AR Navigation</string>
+
+    <string name="scan_site_qr">Scan Site QR</string>
+    <string name="scan_instruction">Scan the PathLume Site QR</string>
+    <string name="scan_sub_instruction">Align camera with site entrance QR code</string>
+
+    <string name="camera_permission_title">Camera Permission Required</string>
+    <string name="camera_permission_desc">PathLume uses your camera for QR scanning, site localization, and AR navigation.</string>
+    <string name="grant_permission">Grant Camera Permission</string>
+
+    <string name="site_detected">Site Identified ✓</string>
+    <string name="loading_site">Loading site configuration…</string>
+    <string name="demo_preset_title">Test Site QR Presets</string>
+    <string name="preset_url">URL: https://pathlume.app/s/demo_site</string>
+    <string name="preset_uri">URI: pathlume://site/demo_site</string>
+</resources>

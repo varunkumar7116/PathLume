@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>PathLume Mobile VPS AR Navigation</title>
+  <link rel="stylesheet" href="./src/example.css">
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #f8fafc;
+    }
+    
+    #app-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    #camera-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #three-canvas-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    #three-canvas-container canvas {
+      pointer-events: auto;
+    }
+
+    /* Screen UI Overlay Containers */
+    .screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 24px;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(16px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .screen.hidden {
+      display: none !important;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Typography & Headers */
+    .header-title {
+      font-size: 24px;
+      font-weight: 800;
+      color: #38bdf8;
+      margin: 0 0 6px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .header-subtitle {
+      font-size: 14px;
+      color: #94a3b8;
+      margin: 0 0 20px 0;
+      line-height: 1.4;
+    }
+
+    /* Cards & Buttons */
+    .card {
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+    }
+    .action-btn {
+      width: 100%;
+      padding: 16px;
+      background: #0284c7;
+      color: #ffffff;
+      border: none;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);
+      transition: all 0.2s ease;
+    }
+    .action-btn:active {
+      transform: scale(0.98);
+      background: #0369a1;
+    }
+    .action-btn.secondary {
+      background: #334155;
+      box-shadow: none;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .preset-chip {
+      padding: 8px 12px;
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      color: #38bdf8;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-block;
+      margin-right: 6px;
+      margin-bottom: 6px;
+    }
+    .preset-chip:hover {
+      background: #0284c7;
+      color: #fff;
+    }
+
+    /* Search Input */
+    .search-box {
+      width: 100%;
+      padding: 14px 16px;
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      color: #f8fafc;
+      font-size: 15px;
+      margin-bottom: 16px;
+      outline: none;
+    }
+    .search-box:focus {
+      border-color: #38bdf8;
+    }
+
+    /* Destination List Items */
+    .dest-list-container {
+      max-height: 48vh;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .dest-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 16px;
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .dest-item:hover, .dest-item.selected {
+      border-color: #38bdf8;
+      background: #0f172a;
+    }
+    .dest-name {
+      font-weight: 600;
+      font-size: 15px;
+      color: #f8fafc;
+    }
+    .dest-type {
+      font-size: 12px;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.15);
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+
+    /* Status Badges */
+    .vps-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .status-searching { background: rgba(234, 179, 8, 0.2); color: #facc15; border: 1px solid rgba(234, 179, 8, 0.4); }
+    .status-localized { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); }
+    .status-lost { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+    .mock-badge { background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); margin-left: 6px; }
+
+    /* HUD Top Banner */
+    #nav-top-banner {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      z-index: 20;
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+    .banner-dest {
+      font-size: 18px;
+      font-weight: 800;
+      color: #38bdf8;
+    }
+    .banner-dist {
+      font-size: 24px;
+      font-weight: 900;
+      color: #4ade80;
+      margin-top: 4px;
+    }
+
+    /* Reroute Alert Notification */
+    #reroute-toast {
+      position: absolute;
+      top: 110px;
+      left: 16px;
+      right: 16px;
+      z-index: 25;
+      background: rgba(217, 119, 6, 0.95);
+      border: 1px solid #f59e0b;
+      border-radius: 12px;
+      padding: 12px 16px;
+      color: #fff;
+      font-weight: 700;
+      font-size: 14px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Arrival Modal Overlay */
+    #arrival-modal {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 30;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(16px);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 32px;
+      text-align: center;
+    }
+
+    /* Telemetry Debug Panel */
+    #debug-panel {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      z-index: 20;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 14px 18px;
+      font-size: 11px;
+      transition: all 0.3s ease;
+    }
+    .debug-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .debug-label { color: #94a3b8; }
+    .debug-val { font-family: monospace; font-weight: 600; color: #f1f5f9; }
+  </style>
+</head>
+<body>
+  <div id="app-container">
+    <!-- Rear Camera Viewport Layer -->
+    <div id="camera-container"></div>
+
+    <!-- 3D Three.js AR Overlay Layer -->
+    <div id="three-canvas-container"></div>
+
+    <!-- SCREEN 1: Scan Site QR Code (Phase 1 & 2) -->
+    <div id="screen-1" class="screen">
+      <div>
+        <h1 class="header-title">📷 PathLume Universal Site Navigation</h1>
+        <p class="header-subtitle">Scan ONE primary Site QR code to load the complete site map, buildings, and VPS configuration.</p>
+        
+        <div class="card">
+          <h3 style="margin-top:0; color:#38bdf8;">Scan Site Entry QR</h3>
+          <p style="font-size:13px; color:#cbd5e1; margin-bottom:14px;">Point camera at site entrance QR or select a test payload below.</p>
+          
+          <button id="btn-scan-qr" class="action-btn">🔍 Open Camera / Scan Site QR</button>
+          
+          <div style="margin-top:14px;">
+            <div style="font-size:11px; color:#94a3b8; margin-bottom:6px; font-weight:700;">TEST SINGLE SITE QR PRESETS:</div>
+            <span class="preset-chip" id="preset-url">URL: https://pathlume.app/s/demo_site</span>
+            <span class="preset-chip" id="preset-uri">URI: pathlume://site/demo_site</span>
+            <span class="preset-chip" id="preset-json">JSON: { siteId: 'demo_site' }</span>
+          </div>
+        </div>
+
+        <div id="qr-result-card" class="card" style="display:none; border-color:#4ade80;">
+          <h4 style="margin:0 0 8px 0; color:#4ade80;">✓ Site Map Loaded</h4>
+          <div style="font-size:15px; color:#f8fafc; font-weight:700;">Site: <span id="qr-building-name">Demo Indoor Site</span></div>
+          <div style="font-size:13px; color:#cbd5e1; margin-top:4px;">Type: <span id="qr-entrance-name">demo</span> | Buildings: <span id="qr-floor-val">2</span></div>
+        </div>
+      </div>
+
+      <button id="btn-screen1-continue" class="action-btn" style="display:none; background:#059669;">CONTINUE ➔</button>
+    </div>
+
+    <!-- SCREEN 2: VPS Localization (Phase 3 & 4) -->
+    <div id="screen-2" class="screen hidden" style="background: rgba(15, 23, 42, 0.8);">
+      <div>
+        <h1 class="header-title">📱 Localizing Position</h1>
+        <p class="header-subtitle">VPS is finding your location and aligning building GLB coordinates...</p>
+        
+        <div class="card" style="text-align:center; padding:28px 20px;">
+          <div id="vps-status-badge-screen2" class="vps-status-badge status-searching">Finding your location...</div>
+          <div id="vps-provider-type" class="vps-status-badge mock-badge">DEVELOPMENT MOCK VPS</div>
+          <p style="font-size:14px; color:#cbd5e1; margin-top:16px;">Keep camera facing corridors to align absolute world pose.</p>
+        </div>
+
+        <div id="vps-localized-card" class="card" style="display:none; border-color:#38bdf8;">
+          <h4 style="margin:0 0 6px 0; color:#38bdf8;">Location Found ✓</h4>
+          <div style="font-size:12px; color:#cbd5e1;">World Pose: <span id="loc-pose-val" style="font-family:monospace;">X: 0.00, Y: 0.00, Z: 7.00</span></div>
+          <div style="font-size:12px; color:#cbd5e1; margin-top:4px;">Accuracy: <span id="loc-acc-val">0.35m</span> | Floor: <span id="loc-floor-val">1</span></div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px;">
+        <button id="btn-screen2-back" class="action-btn secondary" style="flex:1;">← Back</button>
+        <button id="btn-screen2-next" class="action-btn" style="flex:2; display:none;">Select Destination ➔</button>
+      </div>
+    </div>
+
+    <!-- SCREEN 3: Destination Selection (Phase 6) -->
+    <div id="screen-3" class="screen hidden">
+      <div>
+        <h1 class="header-title">📍 WHERE DO YOU WANT TO GO?</h1>
+        <p class="header-subtitle">Select your indoor destination for A* AR route calculation.</p>
+
+        <input type="text" id="dest-search" class="search-box" placeholder="🔍 Search destinations (e.g., Room 101, Library...)" />
+
+        <div id="dest-list" class="dest-list-container">
+          <!-- Dynamic destination items populated by JS -->
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:12px;">
+        <button id="btn-screen3-back" class="action-btn secondary" style="flex:1;">← Back</button>
+        <button id="btn-start-ar-nav" class="action-btn" style="flex:2; background:#059669;" disabled>🚀 Start AR Navigation</button>
+      </div>
+    </div>
+
+    <!-- SCREEN 4: Live AR Navigation HUD (Phase 8 - 18) -->
+    <div id="screen-4-hud" style="display:none;">
+      <!-- Top Navigation Banner -->
+      <div id="nav-top-banner">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-size:11px; text-transform:uppercase; color:#94a3b8; font-weight:700;">Navigating to</div>
+            <div id="ar-dest-title" class="banner-dest">Library</div>
+          </div>
+          <div>
+            <span id="ar-vps-badge" class="vps-status-badge status-localized">VPS LOCALIZED</span>
+            <span id="ar-mock-badge" class="vps-status-badge mock-badge">MOCK</span>
+          </div>
+        </div>
+        <div id="ar-dist-rem" class="banner-dist">12.5 m</div>
+        <div id="ar-status-sub" style="font-size:12px; color:#94a3b8; margin-top:2px;">Route anchored to building GLB</div>
+      </div>
+
+      <!-- Reroute Toast -->
+      <div id="reroute-toast">
+        🔄 Route updated (Off-route detected)
+      </div>
+
+      <!-- Telemetry & Debug Panel (Phase 17) -->
+      <div id="debug-panel">
+        <div class="debug-row"><span class="debug-label">QR Status:</span><span id="db-qr" class="debug-val" style="color:#4ade80;">Connected</span></div>
+        <div class="debug-row"><span class="debug-label">Map ID:</span><span id="db-map" class="debug-val">college_block_a</span></div>
+        <div class="debug-row"><span class="debug-label">VPS State / Acc:</span><span id="db-vps" class="debug-val" style="color:#4ade80;">LOCALIZED (0.35m)</span></div>
+        <div class="debug-row"><span class="debug-label">ARCore / Pose Fusion:</span><span id="db-arcore" class="debug-val" style="color:#38bdf8;">TRACKING | ACTIVE</span></div>
+        <div class="debug-row"><span class="debug-label">Floor / Heading:</span><span id="db-floor" class="debug-val">Floor 1 | 91°</span></div>
+        <div class="debug-row"><span class="debug-label">Fused Pose (X, Y, Z):</span><span id="db-pos" class="debug-val">0.00, -1.90, 7.00</span></div>
+        <div class="debug-row"><span class="debug-label">VPS Latency:</span><span id="db-latency" class="debug-val">42 ms</span></div>
+        <div class="debug-row"><span class="debug-label">User Marker / Route:</span><span id="db-route" class="debug-val">VISIBLE | ACTIVE</span></div>
+
+        <div style="display:flex; gap:6px; margin-top:8px;">
+          <button id="btn-sim-offroute" style="flex:1; padding:6px; background:#d97706; color:#fff; border:none; border-radius:6px; font-weight:700; font-size:11px;">⚠️ Sim Off-Route (>2m)</button>
+          <button id="btn-sim-walk" style="flex:1; padding:6px; background:#0284c7; color:#fff; border:none; border-radius:6px; font-weight:700; font-size:11px;">🚶 Sim Walk Along Route</button>
+          <button id="btn-toggle-nodes" style="flex:1; padding:6px; background:#334155; color:#fff; border:none; border-radius:6px; font-weight:700; font-size:11px;">🛠️ Toggle 3D Nodes</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrival Modal (Phase 14) -->
+    <div id="arrival-modal">
+      <div style="font-size:56px; margin-bottom:16px;">🎉</div>
+      <h2 style="font-size:28px; color:#4ade80; margin:0 0 10px 0;">You've arrived!</h2>
+      <p style="font-size:16px; color:#cbd5e1; margin-bottom:24px;">You have successfully reached <strong id="arrival-dest-name">Library</strong>.</p>
+      <button id="btn-arrival-done" class="action-btn" style="max-width:280px; background:#059669;">Done / New Navigation</button>
+    </div>
+
+  </div>
+
+  <script type="module" src="./src/example-mobile-vps-navigation.ts"></script>
+</body>
+</html>

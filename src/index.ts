@@ -1,5 +1,5 @@
 /**
- * @module navcat
+ * @module pathlume
  */
 
 export type { Box3, Vec3 } from 'mathcat';

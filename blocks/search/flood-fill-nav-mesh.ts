@@ -1,4 +1,4 @@
-import { getNodeByTileAndPoly, getNodeRefIndex, type NavMesh, type NodeRef } from 'navcat';
+import { getNodeByTileAndPoly, getNodeRefIndex, type NavMesh, type NodeRef } from 'pathlume';
 
 export const floodFillNavMesh = (navMesh: NavMesh, startNodeRefs: NodeRef[]): { reachable: NodeRef[]; unreachable: NodeRef[] } => {
     const visited = new Set<number>();

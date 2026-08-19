@@ -1,4 +1,4 @@
-import { mergePositionsAndIndices } from 'navcat/blocks';
+import { mergePositionsAndIndices } from 'pathlume/blocks';
 import { type BufferAttribute, type Mesh, Vector3 } from 'three';
 
 const _position = new Vector3();

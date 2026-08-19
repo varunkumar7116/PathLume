@@ -31,7 +31,7 @@ import {
     polyMeshToTilePolys,
     rasterizeTriangles,
     WALKABLE_AREA,
-} from 'navcat';
+} from 'pathlume';
 
 export type SoloNavMeshInput = {
     positions: ArrayLike<number>;

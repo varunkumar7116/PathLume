@@ -1,40 +1,42 @@
 ![./docs/cover.png](./docs/cover.png)
 
-[![Version](https://img.shields.io/npm/v/navcat?style=for-the-badge)](https://www.npmjs.com/package/navcat)
-![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/isaac-mason/navcat/main.yml?style=for-the-badge)
-[![Downloads](https://img.shields.io/npm/dt/navcat.svg?style=for-the-badge)](https://www.npmjs.com/package/navcat)
+[![Version](https://img.shields.io/npm/v/pathlume?style=for-the-badge)](https://www.npmjs.com/package/pathlume)
+![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/isaac-mason/pathlume/main.yml?style=for-the-badge)
+[![Downloads](https://img.shields.io/npm/dt/pathlume.svg?style=for-the-badge)](https://www.npmjs.com/package/pathlume)
 
 ```bash
-> npm install navcat
+> npm install pathlume
 ```
 
-# navcat
+# PathLume
 
-navcat is a javascript navigation mesh construction and querying library for 3D floor-based navigation.
+PathLume is a javascript 3D indoor AR navigation and navigation mesh construction/querying library.
 
-navcat is ideal for use in games, simulations, and creative websites that require navigation in complex 3D environments.
+PathLume is ideal for use in indoor positioning, AR navigation, simulations, and creative 3D web applications.
 
 **Features**
 
+- Universal Site & One-QR Code indoor AR navigation architecture
+- VPS pose localization & ARCore continuous motion tracking
 - Navigation mesh generation from 3D geometry
-- Navigation mesh querying
+- Navigation mesh querying and A* pathfinding
 - Single and multi-tile navigation mesh support
 - Fully JSON serializable data structures
-- Pure javascript, written to be highly tree-shakeable
-- Works with any javascript engine/library - Babylon.js, PlayCanvas, Three.js, or your own engine
+- Pure javascript/typescript, written to be highly tree-shakeable
+- Works with any 3D engine/library - Three.js, Babylon.js, PlayCanvas, or custom engines
 
 **Documentation**
 
-This README provides curated explanations, guides, and examples to help you get started with navcat.
+This README provides curated explanations, guides, and examples to help you get started with PathLume.
 
-API documentation can be found at [navcat.dev/docs](https://navcat.dev/docs).
+API documentation can be found at [pathlume.dev/docs](https://pathlume.dev/docs).
 
 **Installation**
 
-navcat is available on npm:
+PathLume is available on npm:
 
 ```bash
-npm install navcat
+npm install pathlume
 ```
 
 An example of using navcat without any build tools using unpkg can be found here: https://github.com/isaac-mason/navcat-vanilla-html-js-example
@@ -266,7 +268,7 @@ See the [CHANGELOG.md](./CHANGELOG.md) for a detailed list of changes in each ve
 ## Table of Contents
 
 - [What is a Navigation Mesh?](#what-is-a-navigation-mesh)
-- [Can navcat be integrated with my engine/library?](#can-navcat-be-integrated-with-my-enginelibrary)
+- [Can PathLume be integrated with my engine/library?](#can-pathlume-be-integrated-with-my-enginelibrary)
 - [Quick Start / Minimal Example](#quick-start-minimal-example)
 - [Navigation Mesh Querying](#navigation-mesh-querying)
   - [`findPath`](#findpath)
@@ -311,8 +313,8 @@ See the [CHANGELOG.md](./CHANGELOG.md) for a detailed list of changes in each ve
 - [Using Externally Created Navigation Meshes](#using-externally-created-navigation-meshes)
 - [Saving and Loading NavMeshes](#saving-and-loading-navmeshes)
 - [Debug Utilities](#debug-utilities)
-- [`navcat/three`](#navcatthree)
-- [How does navcat compare to other libraries?](#how-does-navcat-compare-to-other-libraries)
+- [`pathlume/three`](#pathlumethree)
+- [How does PathLume compare to other libraries?](#how-does-pathlume-compare-to-other-libraries)
 - [Community](#community)
 - [Acknowledgements](#acknowledgements)
 
@@ -322,30 +324,30 @@ A navigation mesh (or navmesh) is a simplified representation of a 3D environmen
 
 ![./docs/1-whats-a-navmesh](./docs/1-whats-a-navmesh.png)
 
-## Can navcat be integrated with my engine/library?
+## Can PathLume be integrated with my engine/library?
 
-navcat is agnostic of rendering or game engine library, so it will work well with any javascript engine - Babylon.js, PlayCanvas, Three.js, or your own engine.
+PathLume is agnostic of rendering or game engine library, so it will work well with any javascript engine - Babylon.js, PlayCanvas, Three.js, or your own engine.
 
-If you are using threejs, you may make use of the utilities in the `navcat/three` entrypoint, see the [navcat/three docs](#navcatthree). Integrations for other engines may be added in future.
+If you are using threejs, you may make use of the utilities in the `pathlume/three` entrypoint, see the [pathlume/three docs](#pathlumethree). Integrations for other engines may be added in future.
 
-navcat adheres to the OpenGL conventions:
+PathLume adheres to the OpenGL conventions:
 
 - Uses the right-handed coordinate system
 - Indices should be in counter-clockwise winding order
 
 If you are importing a navmesh created externally, note that navmesh poly vertices must be indexed / must share vertices between adjacent polygons.
 
-If your environment uses a different coordinate system, you will need to transform coordinates going into and out of navcat.
+If your environment uses a different coordinate system, you will need to transform coordinates going into and out of PathLume.
 
-The examples use threejs for rendering, but the core navcat APIs are completely agnostic of any rendering or game engine libraries.
+The examples use threejs for rendering, but the core PathLume APIs are completely agnostic of any rendering or game engine libraries.
 
 ## Quick Start / Minimal Example
 
-Below is a minimal example of using the presets in `navcat/blocks` to generate a navigation mesh, and then using APIs in `navcat` to find a path on the generated navmesh.
+Below is a minimal example of using the presets in `pathlume/blocks` to generate a navigation mesh, and then using APIs in `pathlume` to find a path on the generated navmesh.
 
 For information on how to tune these options, and how the generation process works under the hood with images, see the [Navigation mesh generation](#navigation-mesh-generation) section below.
 
-If you are using threejs, you can find [a threejs-specific version of this snippet in the navcat/three section](#navcatthree).
+If you are using threejs, you can find [a threejs-specific version of this snippet in the pathlume/three section](#pathlumethree).
 
 ```ts
 import { DEFAULT_QUERY_FILTER, findPath, type Vec3 } from 'navcat';

@@ -14,9 +14,9 @@ import type {
     PolyMesh,
     PolyMeshDetail,
     SearchNodePool
-} from 'navcat';
-import * as NavCat from 'navcat';
-import { DebugPrimitiveType } from 'navcat';
+} from 'pathlume';
+import * as PathLume from 'pathlume';
+import { DebugPrimitiveType } from 'pathlume';
 import * as THREE from 'three';
 
 export type DebugObject = {
@@ -257,57 +257,57 @@ export const createTriangleAreaIdsHelper = (
     input: { positions: ArrayLike<number>; indices: ArrayLike<number> },
     triAreaIds: ArrayLike<number>,
 ): DebugObject => {
-    const primitives = NavCat.createTriangleAreaIdsHelper(input, triAreaIds);
+    const primitives = PathLume.createTriangleAreaIdsHelper(input, triAreaIds);
     return primitivesToThreeJS(primitives);
 }
 
 export const createHeightfieldHelper = (heightfield: Heightfield): DebugObject => {
-    const primitives = NavCat.createHeightfieldHelper(heightfield);
+    const primitives = PathLume.createHeightfieldHelper(heightfield);
     return primitivesToThreeJS(primitives);
 }
 
 export const createCompactHeightfieldSolidHelper = (compactHeightfield: CompactHeightfield): DebugObject => {
-    const primitives = NavCat.createCompactHeightfieldSolidHelper(compactHeightfield);
+    const primitives = PathLume.createCompactHeightfieldSolidHelper(compactHeightfield);
     return primitivesToThreeJS(primitives);
 }
 
 export const createCompactHeightfieldDistancesHelper = (compactHeightfield: CompactHeightfield): DebugObject => {
-    const primitives = NavCat.createCompactHeightfieldDistancesHelper(compactHeightfield);
+    const primitives = PathLume.createCompactHeightfieldDistancesHelper(compactHeightfield);
     return primitivesToThreeJS(primitives);
 }
 
 export const createCompactHeightfieldRegionsHelper = (compactHeightfield: CompactHeightfield): DebugObject => {
-    const primitives = NavCat.createCompactHeightfieldRegionsHelper(compactHeightfield);
+    const primitives = PathLume.createCompactHeightfieldRegionsHelper(compactHeightfield);
     return primitivesToThreeJS(primitives);
 }
 
 export const createRawContoursHelper = (contourSet: ContourSet): DebugObject => {
-    const primitives = NavCat.createRawContoursHelper(contourSet);
+    const primitives = PathLume.createRawContoursHelper(contourSet);
     return primitivesToThreeJS(primitives);
 }
 
 export const createSimplifiedContoursHelper = (contourSet: ContourSet): DebugObject => {
-    const primitives = NavCat.createSimplifiedContoursHelper(contourSet);
+    const primitives = PathLume.createSimplifiedContoursHelper(contourSet);
     return primitivesToThreeJS(primitives);
 }
 
 export const createPolyMeshHelper = (polyMesh: PolyMesh): DebugObject => {
-    const primitives = NavCat.createPolyMeshHelper(polyMesh);
+    const primitives = PathLume.createPolyMeshHelper(polyMesh);
     return primitivesToThreeJS(primitives);
 }
 
 export const createPolyMeshDetailHelper = (polyMeshDetail: PolyMeshDetail): DebugObject => {
-    const primitives = NavCat.createPolyMeshDetailHelper(polyMeshDetail);
+    const primitives = PathLume.createPolyMeshDetailHelper(polyMeshDetail);
     return primitivesToThreeJS(primitives);
 }
 
 export const createNavMeshHelper = (navMesh: NavMesh): DebugObject => {
-    const primitives = NavCat.createNavMeshHelper(navMesh);
+    const primitives = PathLume.createNavMeshHelper(navMesh);
     return primitivesToThreeJS(primitives);
 }
 
 export const createNavMeshTileHelper = (tile: NavMeshTile): DebugObject => {
-    const primitives = NavCat.createNavMeshTileHelper(tile);
+    const primitives = PathLume.createNavMeshTileHelper(tile);
     return primitivesToThreeJS(primitives);
 }
 
@@ -316,41 +316,41 @@ export const createNavMeshPolyHelper = (
     nodeRef: NodeRef,
     color: [number, number, number] = [0, 0.75, 1],
 ): DebugObject => {
-    const primitives = NavCat.createNavMeshPolyHelper(navMesh, nodeRef, color);
+    const primitives = PathLume.createNavMeshPolyHelper(navMesh, nodeRef, color);
     return primitivesToThreeJS(primitives);
 }
 
 export const createNavMeshTileBvTreeHelper = (navMeshTile: NavMeshTile): DebugObject => {
-    const primitives = NavCat.createNavMeshTileBvTreeHelper(navMeshTile);
+    const primitives = PathLume.createNavMeshTileBvTreeHelper(navMeshTile);
     return primitivesToThreeJS(primitives);
 }
 
 export const createNavMeshLinksHelper = (navMesh: NavMesh): DebugObject => {
-    const primitives = NavCat.createNavMeshLinksHelper(navMesh);
+    const primitives = PathLume.createNavMeshLinksHelper(navMesh);
     return primitivesToThreeJS(primitives);
 }
 
 export const createNavMeshBvTreeHelper = (navMesh: NavMesh): DebugObject => {
-    const primitives = NavCat.createNavMeshBvTreeHelper(navMesh);
+    const primitives = PathLume.createNavMeshBvTreeHelper(navMesh);
     return primitivesToThreeJS(primitives);
 }
 
 export const createNavMeshTilePortalsHelper = (navMeshTile: NavMeshTile): DebugObject => {
-    const primitives = NavCat.createNavMeshTilePortalsHelper(navMeshTile);
+    const primitives = PathLume.createNavMeshTilePortalsHelper(navMeshTile);
     return primitivesToThreeJS(primitives);
 }
 
 export const createNavMeshPortalsHelper = (navMesh: NavMesh): DebugObject => {
-    const primitives = NavCat.createNavMeshPortalsHelper(navMesh);
+    const primitives = PathLume.createNavMeshPortalsHelper(navMesh);
     return primitivesToThreeJS(primitives);
 }
 
 export const createSearchNodesHelper = (nodePool: SearchNodePool): DebugObject => {
-    const primitives = NavCat.createSearchNodesHelper(nodePool);
+    const primitives = PathLume.createSearchNodesHelper(nodePool);
     return primitivesToThreeJS(primitives);
 }
 
 export const createNavMeshOffMeshConnectionsHelper = (navMesh: NavMesh): DebugObject => {
-    const primitives = NavCat.createNavMeshOffMeshConnectionsHelper(navMesh);
+    const primitives = PathLume.createNavMeshOffMeshConnectionsHelper(navMesh);
     return primitivesToThreeJS(primitives);
 }

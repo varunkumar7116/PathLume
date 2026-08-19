@@ -1,5 +1,5 @@
 /**
- * @module navcat/three
+ * @module pathlume/three
  */
 
 export * from "./debug";

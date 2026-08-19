@@ -1,6 +1,6 @@
 import type { Vec3 } from 'mathcat';
 import { vec3 } from 'mathcat';
-import { findLocalNeighbourhood, getPolyWallSegments, isValidNodeRef, type NavMesh, type NodeRef, type QueryFilter } from 'navcat';
+import { findLocalNeighbourhood, getPolyWallSegments, isValidNodeRef, type NavMesh, type NodeRef, type QueryFilter } from 'pathlume';
 
 const MAX_LOCAL_SEGS = 8;
 const MAX_LOCAL_POLYS = 16;

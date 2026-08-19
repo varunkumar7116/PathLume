@@ -158,5 +158,10 @@
         "title": "Rasterize Filled Volume",
         "description": "Example of rasterizing filled volumes into a heightfield",
         "tags": ["heightfield", "rasterize", "generation", "shape", "volume"]
+    },
+    "example-sample-navigation": {
+        "title": "Sample GLB Navigation Test",
+        "description": "NavMesh generation and pathfinding test page for sample.glb",
+        "tags": ["navmesh", "sample.glb", "pathfinding", "query"]
     }
 }

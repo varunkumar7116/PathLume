@@ -9,9 +9,9 @@ import {
     getNodeByRef,
     OffMeshConnectionDirection,
     type OffMeshConnectionParams,
-} from 'navcat';
-import { crowd, floodFillNavMesh, generateSoloNavMesh, type SoloNavMeshInput, type SoloNavMeshOptions } from 'navcat/blocks';
-import { createNavMeshHelper, createNavMeshOffMeshConnectionsHelper, getPositionsAndIndices } from 'navcat/three';
+} from 'pathlume';
+import { crowd, floodFillNavMesh, generateSoloNavMesh, type SoloNavMeshInput, type SoloNavMeshOptions } from 'pathlume/blocks';
+import { createNavMeshHelper, createNavMeshOffMeshConnectionsHelper, getPositionsAndIndices } from 'pathlume/three';
 import * as THREE from 'three';
 import { Line2, LineGeometry, LineMaterial } from 'three/examples/jsm/Addons.js';
 import { loadGLTF } from './load-gltf';

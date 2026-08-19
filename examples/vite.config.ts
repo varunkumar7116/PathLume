@@ -25,6 +25,7 @@ export default defineConfig({
         target: 'esnext',
     },
     server: {
-        open: '/index.html',
+        port: 5174,
+        open: '/example-sample-navigation.html',
     },
 });

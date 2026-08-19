@@ -17,7 +17,7 @@ import {
     SlicedFindNodePathStatusFlags,
     type StraightPathPoint,
     updateSlicedFindNodePath,
-} from 'navcat';
+} from 'pathlume';
 
 export type PathCorridor = {
     position: Vec3;

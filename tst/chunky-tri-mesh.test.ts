@@ -1,4 +1,4 @@
-import { chunkyTriMesh } from 'navcat/blocks';
+import { chunkyTriMesh } from 'pathlume/blocks';
 import { describe, expect, it } from 'vitest';
 
 const createTestGrid = (size: number) => {

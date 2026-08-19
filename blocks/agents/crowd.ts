@@ -19,7 +19,7 @@ import {
     type StraightPathPoint,
     StraightPathPointFlags,
     updateSlicedFindNodePath,
-} from 'navcat';
+} from 'pathlume';
 import * as localBoundary from './local-boundary';
 import * as obstacleAvoidance from './obstacle-avoidance';
 import * as pathCorridor from './path-corridor';

@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.PathLume" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/pathlume_navy_dark</item>
+        <item name="android:navigationBarColor">@color/pathlume_navy_dark</item>
+        <item name="android:windowBackground">@color/pathlume_navy_dark</item>
+    </style>
+</resources>

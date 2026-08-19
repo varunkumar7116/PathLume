@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PathLume Site & QR Code Admin Portal</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --accent-color: #38bdf8;
+            --accent-hover: #0284c7;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --border-color: #334155;
+            --success-color: #22c55e;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            padding: 24px;
+            min-height: 100vh;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            color: var(--accent-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        @media (max-width: 900px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+
+        .card h2 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            color: var(--text-main);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 6px;
+            color: var(--text-sub);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 14px;
+            background-color: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-main);
+            font-size: 14px;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        .btn {
+            background-color: var(--accent-color);
+            color: #0f172a;
+            font-weight: 600;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background-color: #334155;
+            color: var(--text-main);
+        }
+
+        .btn-secondary:hover {
+            background-color: #475569;
+        }
+
+        .qr-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        #qr-canvas {
+            width: 240px;
+            height: 240px;
+        }
+
+        .qr-meta {
+            margin-top: 12px;
+            text-align: center;
+            color: #0f172a;
+            font-weight: 600;
+        }
+
+        .qr-meta span {
+            font-size: 12px;
+            color: #64748b;
+            display: block;
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .site-list {
+            margin-top: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .site-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background-color: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .site-item:hover {
+            border-color: var(--accent-color);
+        }
+
+        .site-item-info h4 {
+            font-size: 15px;
+            color: var(--text-main);
+        }
+
+        .site-item-info p {
+            font-size: 12px;
+            color: var(--text-sub);
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            background-color: #334155;
+            color: var(--accent-color);
+            text-transform: uppercase;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background-color: var(--success-color);
+            color: #ffffff;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: 600;
+            display: none;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.4);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>🐾 PathLume Universal Site & QR Admin</h1>
+        <div>
+            <a href="/example-mobile-vps-navigation.html" class="btn btn-secondary">Launch Mobile AR View</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Site Creator Form -->
+        <div class="card">
+            <h2>1. Create New Site</h2>
+            <form id="create-site-form">
+                <div class="form-group">
+                    <label for="site-name">Site Name</label>
+                    <input type="text" id="site-name" class="form-control" placeholder="e.g. Metropolitan Hospital" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="site-type">Site Type (Freeform)</label>
+                    <input type="text" id="site-type" class="form-control" placeholder="e.g. hospital, campus, mall, airport, office, etc." required>
+                </div>
+
+                <div class="form-group">
+                    <label for="site-desc">Description</label>
+                    <textarea id="site-desc" class="form-control" rows="3" placeholder="Description of the indoor navigation site..."></textarea>
+                </div>
+
+                <button type="submit" class="btn">✨ Create Site & Generate Single QR</button>
+            </form>
+
+            <h2 style="margin-top: 32px;">Existing Registered Sites</h2>
+            <div id="site-list" class="site-list">
+                <!-- Dynamically populated -->
+            </div>
+        </div>
+
+        <!-- Single QR Display Panel -->
+        <div class="card">
+            <h2>2. Single Site QR Code</h2>
+            <p style="color: var(--text-sub); font-size: 13px; margin-bottom: 16px;">
+                Each PathLume site receives exactly <strong>ONE primary QR code</strong>. Placed at site entry points, it identifies the site and triggers complete site initialization.
+            </p>
+
+            <div id="qr-section" style="display: none;">
+                <div class="qr-display">
+                    <canvas id="qr-canvas"></canvas>
+                    <div class="qr-meta">
+                        <div id="qr-site-name">Site Name</div>
+                        <span>Site ID: <strong id="qr-site-id">site_001</strong></span>
+                        <span>Type: <strong id="qr-site-type">Campus</strong></span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Canonical Site URL</label>
+                    <input type="text" id="qr-url-input" class="form-control" readonly>
+                </div>
+
+                <div class="actions">
+                    <button id="btn-download-png" class="btn btn-secondary">💾 Download PNG</button>
+                    <button id="btn-print-qr" class="btn btn-secondary">🖨️ Print QR</button>
+                    <button id="btn-copy-url" class="btn btn-secondary">📋 Copy URL</button>
+                </div>
+            </div>
+
+            <div id="qr-placeholder" style="text-align: center; padding: 40px; color: var(--text-sub);">
+                Select or create a site on the left to view and print its single primary QR code.
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">Action completed successfully!</div>
+
+    <script type="module" src="./src/admin-site-manager.ts"></script>
+</body>
+</html>

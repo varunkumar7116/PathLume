@@ -31,7 +31,7 @@ import {
     polyMeshToTilePolys,
     rasterizeTriangles,
     WALKABLE_AREA,
-} from 'navcat';
+} from 'pathlume';
 import * as chunkyTriMesh from '../geometry/chunky-tri-mesh';
 
 export type TiledNavMeshInput = {

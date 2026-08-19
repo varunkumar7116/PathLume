@@ -1,5 +1,5 @@
 /**
- * @module navcat/blocks
+ * @module pathlume/blocks
  */
 
 export * from './agents';
