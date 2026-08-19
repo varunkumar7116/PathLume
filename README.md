@@ -1,10 +1,4 @@
-![./docs/cover.png](./docs/cover.png)
 
-[![Version](https://img.shields.io/npm/v/pathlume?style=for-the-badge)](https://www.npmjs.com/package/pathlume)
-![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/isaac-mason/pathlume/main.yml?style=for-the-badge)
-[![Downloads](https://img.shields.io/npm/dt/pathlume.svg?style=for-the-badge)](https://www.npmjs.com/package/pathlume)
-
-```bash
 > npm install pathlume
 ```
 
