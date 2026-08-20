@@ -4,26 +4,22 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CompassCalibration
 import androidx.compose.material.icons.filled.Navigation
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -31,26 +27,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import com.pathlume.app.ar.ARCoreSessionManager
+import com.pathlume.app.ar.ARCoreStatus
 import com.pathlume.app.domain.model.Destination
-import kotlinx.coroutines.delay
+import com.pathlume.app.domain.model.Vector3D
+import com.pathlume.app.localization.ARCorePose
+import com.pathlume.app.localization.FusedPose
+import com.pathlume.app.localization.PoseFusionManager
+import com.pathlume.app.localization.WorldCoordinateManager
+import com.pathlume.app.navigation.ArrivalDetector
+import com.pathlume.app.navigation.OffRouteDetector
 
 private val NavyDark = Color(0xFF0F172A)
 private val CardDark = Color(0xFF1E293B)
 private val SkyBlue = Color(0xFF38BDF8)
-private val BluePrimary = Color(0xFF0284C7)
 private val AccentGreen = Color(0xFF22C55E)
+private val ErrorRed = Color(0xFFEF4444)
 private val TextMain = Color(0xFFF8FAFC)
 private val TextSub = Color(0xFF94A3B8)
 private val BorderDark = Color(0xFF334155)
-
-data class NavNode2D(
-    val id: String,
-    val name: String,
-    val relX: Float, // -1.0 to 1.0 (screen relative)
-    val relY: Float, // 0.0 (top) to 1.0 (bottom)
-    val isDestination: Boolean = false,
-    val isCurrentPose: Boolean = false
-)
 
 @Composable
 fun ARNavigationScreen(
@@ -61,55 +56,117 @@ fun ARNavigationScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    var showNodeGraphOverlay by remember { mutableStateOf(true) }
-    var vpsConfidence by remember { mutableStateOf(0.96f) }
+    val arSessionManager = remember { ARCoreSessionManager(context) }
+    val poseFusionManager = remember { PoseFusionManager() }
 
-    // Real-time VPS pose coordinates in site canonical frame (meters)
-    var posX by remember { mutableStateOf(0.0f) }
-    var posY by remember { mutableStateOf(-1.90f) }
-    var posZ by remember { mutableStateOf(1.2f) }
-    var headingDegrees by remember { mutableStateOf(345) }
+    var isArSupported by remember { mutableStateOf<Boolean?>(null) }
+    var showDiagnostics by remember { mutableStateOf(true) }
 
-    // Waypoint Nodes along path
-    val routeNodes = remember(destination) {
-        listOf(
-            NavNode2D("N0_start", "User VPS Origin", 0.0f, 0.85f, isCurrentPose = true),
-            NavNode2D("N1_lobby", "Main Entrance Corridor", -0.15f, 0.70f),
-            NavNode2D("N2_junction", "Central Elevator Junction", 0.10f, 0.55f),
-            NavNode2D("N3_hallway", "Corridor Waypoint 3", -0.05f, 0.40f),
-            NavNode2D("N4_dest", destination.name, 0.0f, 0.28f, isDestination = true)
-        )
+    val arStatus by arSessionManager.status.collectAsState()
+    val arPose by arSessionManager.currentPose.collectAsState()
+    val fusedPose by poseFusionManager.fusedPose.collectAsState()
+
+    val destinationFloorInt = remember(destination.floorId) {
+        destination.floorId.filter { it.isDigit() }.toIntOrNull() ?: 1
     }
 
-    var currentWaypointIndex by remember { mutableStateOf(1) }
-
-    // Real-time VPS pose simulation tick
+    // 1. Initial ARCore Device Capability Verification (Phase 3)
     LaunchedEffect(Unit) {
-        while (true) {
-            delay(800)
-            headingDegrees = (headingDegrees + (-2..2).random() + 360) % 360
-            posZ += 0.3f
-            posX += ((-5..5).random() / 100.0f)
-            vpsConfidence = (94..99).random() / 100.0f
-
-            if (posZ > 3.5f && currentWaypointIndex < routeNodes.size - 1) {
-                currentWaypointIndex++
-            }
+        val supported = arSessionManager.checkArCoreSupport()
+        isArSupported = supported
+        if (supported) {
+            arSessionManager.initSession()
         }
     }
 
-    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
+    // 2. Stream real ARCore pose deltas to PoseFusion (Phase 5, Phase 12)
+    LaunchedEffect(arPose) {
+        val pose = arPose
+        if (pose != null) {
+            poseFusionManager.updateARCoreMotion(
+                ARCorePose(
+                    position = pose.position,
+                    heading = pose.heading,
+                    timestamp = pose.timestamp
+                )
+            )
+        }
+    }
+
+    // 3. Compute real physical distance to destination (Phase 6)
+    val distanceToDestination = remember(fusedPose.position, destination.position) {
+        WorldCoordinateManager.distanceMeters(fusedPose.position, destination.position)
+    }
+
+    // 4. Real Arrival Check (Phase 7, Phase 19)
+    LaunchedEffect(fusedPose, destination) {
+        val arrived = ArrivalDetector.hasArrived(
+            userPosition = fusedPose.position,
+            userFloor = fusedPose.floor,
+            destination = destination,
+            destinationFloorLevel = destinationFloorInt
+        )
+        if (arrived) {
+            onArrived()
+        }
+    }
 
     DisposableEffect(Unit) {
         onDispose {
-            try {
-                if (cameraProviderFuture.isDone) {
-                    cameraProviderFuture.get().unbindAll()
+            arSessionManager.destroy()
+        }
+    }
+
+    // If ARCore is not supported on this device, stop AR navigation (Phase 3 Rule)
+    if (isArSupported == false) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(NavyDark)
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardDark),
+                shape = RoundedCornerShape(20.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, ErrorRed)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = ErrorRed,
+                        modifier = Modifier.size(56.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "AR Navigation Unavailable",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        color = TextMain
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "AR navigation is not supported on this device. Google ARCore 6DoF tracking capabilities are required to anchor 3D navigation paths.",
+                        fontSize = 14.sp,
+                        color = TextSub,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = onCloseClicked,
+                        colors = ButtonDefaults.buttonColors(containerColor = ErrorRed),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Return to Site Overview", color = TextMain, fontWeight = FontWeight.Bold)
+                    }
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
         }
+        return
     }
 
     Box(
@@ -117,7 +174,8 @@ fun ARNavigationScreen(
             .fillMaxSize()
             .background(NavyDark)
     ) {
-        // 1. CameraX Live Camera Background
+        // 1. Live Camera Preview (Phase 4)
+        val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
         AndroidView(
             factory = { ctx ->
                 val previewView = PreviewView(ctx)
@@ -143,62 +201,20 @@ fun ARNavigationScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // 2. 3D AR Node Mapping Canvas (Draws Topological Nodes & AR Edges over camera)
+        // 2. Real AR 3D Route & User Pose Canvas (Phase 16)
         Canvas(modifier = Modifier.fillMaxSize()) {
             val width = size.width
             val height = size.height
 
-            if (showNodeGraphOverlay) {
-                // Draw A* Path Edges connecting nodes
-                for (i in 0 until routeNodes.size - 1) {
-                    val n1 = routeNodes[i]
-                    val n2 = routeNodes[i + 1]
+            // Render current SITE WORLD user position indicator
+            val cx = width / 2 + (fusedPose.position.x * 20f)
+            val cy = height / 2 + (fusedPose.position.z * 20f)
 
-                    val p1 = Offset(width / 2 + n1.relX * width * 0.4f, n1.relY * height)
-                    val p2 = Offset(width / 2 + n2.relX * width * 0.4f, n2.relY * height)
-
-                    // Draw connecting path line
-                    drawLine(
-                        color = if (i < currentWaypointIndex) AccentGreen else SkyBlue,
-                        start = p1,
-                        end = p2,
-                        strokeWidth = if (i < currentWaypointIndex) 8.dp.toPx() else 4.dp.toPx()
-                    )
-                }
-
-                // Draw AR Node Landmarks
-                routeNodes.forEachIndexed { idx, node ->
-                    val cx = width / 2 + node.relX * width * 0.4f
-                    val cy = node.relY * height
-
-                    if (node.isDestination) {
-                        // Render Destination Target Marker
-                        drawCircle(color = AccentGreen, radius = 22.dp.toPx(), center = Offset(cx, cy))
-                        drawCircle(color = NavyDark, radius = 14.dp.toPx(), center = Offset(cx, cy))
-                        drawCircle(color = AccentGreen, radius = 8.dp.toPx(), center = Offset(cx, cy))
-                    } else if (node.isCurrentPose) {
-                        // Render VPS User Pose Origin Marker
-                        drawCircle(color = SkyBlue.copy(alpha = 0.4f), radius = 28.dp.toPx(), center = Offset(cx, cy))
-                        drawCircle(color = SkyBlue, radius = 12.dp.toPx(), center = Offset(cx, cy))
-                    } else {
-                        // Render Intermediate Topological Graph Node
-                        val isPassed = idx <= currentWaypointIndex
-                        drawCircle(
-                            color = if (isPassed) AccentGreen else Color.White,
-                            radius = 10.dp.toPx(),
-                            center = Offset(cx, cy)
-                        )
-                        drawCircle(
-                            color = NavyDark,
-                            radius = 6.dp.toPx(),
-                            center = Offset(cx, cy)
-                        )
-                    }
-                }
-            }
+            drawCircle(color = SkyBlue.copy(alpha = 0.3f), radius = 30.dp.toPx(), center = Offset(cx, cy))
+            drawCircle(color = SkyBlue, radius = 10.dp.toPx(), center = Offset(cx, cy))
         }
 
-        // 3. Top Header HUD: Active Instruction & Destination
+        // 3. Header HUD: Destination & Distance Telemetry (Phase 6)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -242,9 +258,9 @@ fun ARNavigationScreen(
                             color = TextMain
                         )
                         Spacer(modifier = Modifier.height(2.dp))
-                        val nextWaypointText = "Next: ${routeNodes.getOrNull(currentWaypointIndex)?.name ?: "Destination"}"
+                        val distanceStr = "Distance: %.1fm • Floor %d".format(distanceToDestination, destinationFloorInt)
                         Text(
-                            text = nextWaypointText,
+                            text = distanceStr,
                             fontSize = 13.sp,
                             color = AccentGreen
                         )
@@ -258,106 +274,54 @@ fun ARNavigationScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // VPS Pose Coordinates Real-Time Telemetry Bar
-            Surface(
-                color = NavyDark.copy(alpha = 0.85f),
-                shape = RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, BorderDark)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+            // 4. Live Diagnostic Telemetry Overlay (Phase 5, Phase 13)
+            if (showDiagnostics) {
+                Surface(
+                    color = NavyDark.copy(alpha = 0.88f),
+                    shape = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderDark)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.CompassCalibration, contentDescription = null, tint = AccentGreen, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        val posString = "VPS: (%.2fm, %.2fm, %.2fm)".format(posX, posY, posZ)
-                        Text(
-                            text = posString,
-                            color = TextMain,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        val headingText = "Heading: ${headingDegrees}°"
-                        Text(
-                            text = headingText,
-                            color = TextSub,
-                            fontSize = 12.sp
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Surface(
-                            color = if (showNodeGraphOverlay) SkyBlue.copy(alpha = 0.2f) else CardDark,
-                            shape = RoundedCornerShape(6.dp),
-                            modifier = Modifier.clickable { showNodeGraphOverlay = !showNodeGraphOverlay }
-                        ) {
-                            val nodeToggleText = if (showNodeGraphOverlay) "Nodes: ON" else "Nodes: OFF"
-                            Text(
-                                text = nodeToggleText,
-                                color = if (showNodeGraphOverlay) SkyBlue else TextSub,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // 4. Bottom Control Panel & Waypoint Node Step Controls
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Surface(
-                color = CardDark.copy(alpha = 0.94f),
-                shape = RoundedCornerShape(20.dp),
-                shadowElevation = 10.dp,
-                border = androidx.compose.foundation.BorderStroke(1.dp, BorderDark)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp)
                     ) {
-                        Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.CompassCalibration, contentDescription = null, tint = AccentGreen, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("SYSTEM DIAGNOSTICS", color = TextMain, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
                             Text(
-                                text = "A* Route Navigation",
-                                color = TextMain,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp
-                            )
-                            val statusStr = "Node ${currentWaypointIndex + 1} of ${routeNodes.size} • ${(vpsConfidence * 100).toInt()}% VPS Confidence"
-                            Text(
-                                text = statusStr,
-                                color = TextSub,
-                                fontSize = 12.sp
+                                text = "ARCore: ${arStatus.name}",
+                                color = if (arStatus == ARCoreStatus.TRACKING) AccentGreen else SkyBlue,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
                             )
                         }
 
-                        Button(
-                            onClick = onArrived,
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = NavyDark, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Arrived", color = NavyDark, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        val arPoseStr = "ARCore Pose: (%.2fm, %.2fm, %.2fm) Heading: %d°".format(
+                            arPose?.position?.x ?: 0f,
+                            arPose?.position?.y ?: 0f,
+                            arPose?.position?.z ?: 0f,
+                            arPose?.heading?.toInt() ?: 0
+                        )
+                        Text(arPoseStr, color = TextSub, fontSize = 11.sp)
+
+                        val fusedStr = "Fused Pose: (%.2fm, %.2fm, %.2fm)".format(
+                            fusedPose.position.x,
+                            fusedPose.position.y,
+                            fusedPose.position.z
+                        )
+                        Text(fusedStr, color = TextMain, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+
+                        Text("VPS: UNAVAILABLE (REAL PROVIDER CONFIGURATION REQUIRED)", color = ErrorRed, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

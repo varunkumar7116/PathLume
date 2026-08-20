@@ -197,12 +197,19 @@ export class PathLumeApiServer {
                                     return;
                                 }
 
-                                const vpsResult: VPSBackendResponse = typeof imageBase64 === 'string'
-                                    ? await this.vpsClient.localizeFrame(imageBase64, siteId)
-                                    : { localized: true, position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, accuracy: 0.95, mapId: 'floor_0' };
-
-                                res.writeHead(200, { 'Content-Type': 'application/json' });
-                                res.end(JSON.stringify(vpsResult));
+                                try {
+                                    const vpsResult: VPSBackendResponse = await this.vpsClient.localizeFrame(imageBase64, siteId);
+                                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify(vpsResult));
+                                } catch {
+                                    // If no external live VPS backend is configured, return explicit UNAVAILABLE status
+                                    res.writeHead(503, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({
+                                        localized: false,
+                                        status: 'UNAVAILABLE',
+                                        message: 'VPS BLOCKED — Real VPS provider configuration required'
+                                    }));
+                                }
                             } catch (e: any) {
                                 res.writeHead(500, { 'Content-Type': 'application/json' });
                                 res.end(JSON.stringify({ localized: false, message: `VPS localization error: ${e.message}` }));

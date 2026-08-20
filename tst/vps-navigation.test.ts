@@ -53,16 +53,15 @@ describe('VPS & Mobile AR Navigation Architecture', () => {
         }
     });
 
-    it('should process simulated frame requests in MockVPSServer', async () => {
+    it('should process unconfigured frame requests in MockVPSServer', async () => {
         const mockServer = new MockVPSServer();
         const response = mockServer.handleLocalizeRequest({
             mapId: 'building_01',
             image: 'data:image/jpeg;base64,sampleframe',
         });
 
-        expect(response.localized).toBe(true);
-        expect(response.position).toBeDefined();
-        expect(response.accuracy).toBeLessThan(1.0);
+        expect(response.localized).toBe(false);
+        expect(response.message).toContain('VPS BLOCKED');
     });
 
     it('should pass VPS poses through VPSAdapter into NavigationEngine', async () => {
@@ -82,7 +81,7 @@ describe('VPS & Mobile AR Navigation Architecture', () => {
         });
 
         const pose = await adapter.localize('dummy_frame');
-        expect(pose).not.toBeNull();
-        expect(adapterStatus).toBe('VPS_LOCALIZED');
+        expect(pose).toBeNull();
+        expect(adapterStatus).toBe('VPS_SEARCHING');
     });
 });

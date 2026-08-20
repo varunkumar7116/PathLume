@@ -31,18 +31,20 @@ class RealVpsProvider(
                         latencyMs = latency
                     )
                 } else {
+                    val isUnconfigured = body.message?.contains("VPS BLOCKED", ignoreCase = true) == true
                     return VPSPoseResult(
                         isLocalized = false,
-                        status = VPSStatus.SEARCHING,
-                        message = body.message ?: "Frame unlocalized",
+                        status = if (isUnconfigured) VPSStatus.UNAVAILABLE else VPSStatus.SEARCHING,
+                        message = body.message ?: "VPS Provider Unavailable",
                         latencyMs = latency
                     )
                 }
             } else {
+                val isUnavailable = response.code() == 503 || response.code() == 530
                 return VPSPoseResult(
                     isLocalized = false,
-                    status = VPSStatus.ERROR,
-                    message = "VPS HTTP Error (${response.code()}): ${response.message()}",
+                    status = if (isUnavailable) VPSStatus.UNAVAILABLE else VPSStatus.ERROR,
+                    message = if (isUnavailable) "VPS BLOCKED — REAL PROVIDER CONFIGURATION REQUIRED" else "VPS HTTP Error (${response.code()}): ${response.message()}",
                     latencyMs = latency
                 )
             }
@@ -50,8 +52,8 @@ class RealVpsProvider(
             val latency = System.currentTimeMillis() - startTime
             return VPSPoseResult(
                 isLocalized = false,
-                status = VPSStatus.ERROR,
-                message = "Network error communicating with VPS: ${e.localizedMessage}",
+                status = VPSStatus.UNAVAILABLE,
+                message = "VPS BLOCKED — REAL PROVIDER CONFIGURATION REQUIRED (${e.localizedMessage})",
                 latencyMs = latency
             )
         }
