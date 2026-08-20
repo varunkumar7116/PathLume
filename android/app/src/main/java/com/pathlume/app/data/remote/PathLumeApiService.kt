@@ -79,3 +79,14 @@ interface PathLumeApiService {
     @POST("api/vps/localize")
     suspend fun localizeFrame(@Body request: LocalizeRequest): Response<LocalizeResponse>
 }
+
+object PathLumeApiClient {
+    fun create(baseUrl: String = "https://pathlume-9d8e9.web.app/"): PathLumeApiService {
+        val formattedUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+        val retrofit = retrofit2.Retrofit.Builder()
+            .baseUrl(formattedUrl)
+            .addConverterFactory(retrofit2.converter.gson.GsonConverterFactory.create())
+            .build()
+        return retrofit.create(PathLumeApiService::class.java)
+    }
+}
