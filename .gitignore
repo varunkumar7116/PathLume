@@ -4,3 +4,6 @@ dist-typedoc
 llm
 .firebase
 android/app/build
+.env
+.env.local
+*.env

@@ -181,7 +181,23 @@ export class PathLumeApiServer {
                         return;
                     }
 
-                    // 9. POST /api/vps/localize
+                    // 9. GET or POST /api/vps/health
+                    if (pathname === '/api/vps/health') {
+                        const isConfigured = Boolean(process.env.VPS_API_KEY && process.env.VPS_PROVIDER);
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({
+                            provider: process.env.VPS_PROVIDER || 'Immersal VPS Engine',
+                            configured: isConfigured,
+                            connected: isConfigured,
+                            reachable: true,
+                            mapId: process.env.VPS_MAP_ID || null,
+                            status: isConfigured ? 'CONNECTED' : 'UNCONFIGURED',
+                            message: isConfigured ? 'VPS provider active & connected' : 'VPS BLOCKED — REAL PROVIDER CONFIGURATION & PHYSICAL MAP REQUIRED'
+                        }));
+                        return;
+                    }
+
+                    // 10. POST /api/vps/localize
                     if (req.method === 'POST' && pathname === '/api/vps/localize') {
                         let body = '';
                         req.on('data', (chunk: Buffer | string) => { body += chunk; });
@@ -207,7 +223,7 @@ export class PathLumeApiServer {
                                     res.end(JSON.stringify({
                                         localized: false,
                                         status: 'UNAVAILABLE',
-                                        message: 'VPS BLOCKED — Real VPS provider configuration required'
+                                        message: 'VPS BLOCKED — REAL PROVIDER CONFIGURATION REQUIRED'
                                     }));
                                 }
                             } catch (e: any) {
