@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PathLume Web Hub — Admin & 3D Indoor Editor</title>
-    <meta name="description" content="PathLume Administrative Hub, 3D GLB Model Management, Navigation Graph Authoring, and VPS Site Publishing." />
+    <title>PathLume Web Hub — Production Site Authoring Platform</title>
+    <meta name="description" content="PathLume Authoring Platform: 3D GLB Model Management, NavMesh Graph Authoring, Spatial Calibration, and Site Publishing." />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧭</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,13 +13,13 @@
   </head>
   <body>
 
-    <!-- 1. DEDICATED ADMIN LOGIN SCREEN (Shown when not authenticated) -->
+    <!-- 1. DEDICATED ADMIN LOGIN SCREEN -->
     <div id="login-view" class="login-container">
       <div class="login-card">
         <div class="login-header">
           <div class="login-logo">🧭</div>
           <h1 class="login-title">PathLume Admin Portal</h1>
-          <p class="login-subtitle">Indoor AR Navigation Platform — Admin Access</p>
+          <p class="login-subtitle">Production Spatial Site Authoring Platform</p>
         </div>
         
         <form id="form-admin-login" onsubmit="return false;" class="login-form">
@@ -36,17 +36,17 @@
           <div id="auth-error-msg" class="auth-error"></div>
 
           <button type="submit" id="btn-auth-submit" class="btn btn-primary full-width font-large">
-            <span>Sign In to Admin Hub</span> ➔
+            <span>Sign In to Authoring Platform</span> ➔
           </button>
         </form>
 
         <div class="login-footer">
-          <span>🔒 Authorized Administrative Access Only</span>
+          <span>🔒 Authorized Site Author Access Only</span>
         </div>
       </div>
     </div>
 
-    <!-- 2. MAIN ADMIN HUB SCREEN (Shown when authenticated) -->
+    <!-- 2. MAIN ADMIN HUB SCREEN -->
     <div id="hub-view" class="hub-container hidden">
       
       <!-- Top Navigation Header -->
@@ -55,81 +55,135 @@
           <div class="brand-icon">🧭</div>
           <div class="brand-text">
             <h1 class="brand-title">PathLume Web Hub</h1>
-            <span class="brand-subtitle">Indoor AR Navigation Platform</span>
+            <span class="brand-subtitle">Site Authoring Platform v2.0</span>
           </div>
         </div>
 
         <div class="header-center">
           <label for="site-select" class="sr-only">Active Site</label>
           <select id="site-select" class="site-dropdown" title="Select Active Site">
+            <option value="controlled_test_site">controlled_test_site (Controlled Field Site)</option>
             <option value="sample1">sample1 (Photogrammetry 3D Scan)</option>
             <option value="demo_site">demo_site (Demo Universal Campus)</option>
           </select>
           <button id="btn-create-new-site" class="btn btn-secondary btn-sm">+ New Site</button>
-          <span id="site-status-badge" class="badge badge-active">ACTIVE v1.0</span>
+          <span id="site-status-badge" class="badge badge-active">PUBLISHED v1.0</span>
         </div>
 
         <div class="header-actions">
           <button id="btn-admin-logout" class="btn btn-secondary btn-sm">Sign Out</button>
           <button id="btn-validate-site" class="btn btn-secondary">Validate Site</button>
           <button id="btn-publish-site" class="btn btn-publish">Publish & Version</button>
-          <button id="btn-generate-qr" class="btn btn-accent">Primary QR</button>
+          <button id="btn-generate-qr" class="btn btn-accent">Primary Site QR</button>
         </div>
       </header>
 
       <!-- Main Application Grid Container -->
       <div class="admin-container">
         
-        <!-- Left Control Sidebar -->
+        <!-- Left Professional Sidebar Navigation -->
         <aside class="admin-sidebar">
           
-          <!-- Sidebar Tabs -->
-          <div class="sidebar-tabs">
-            <button class="tab-btn active" data-tab="panel-site">Site Config</button>
-            <button class="tab-btn" data-tab="panel-models">3D Models</button>
-            <button class="tab-btn" data-tab="panel-graph">Nav Graph</button>
-            <button class="tab-btn" data-tab="panel-destinations">Destinations</button>
-            <button class="tab-btn" data-tab="panel-vps">VPS & Align</button>
+          <div class="sidebar-tabs flex-column">
+            <div class="nav-group-label">OVERVIEW</div>
+            <button class="tab-btn active" data-tab="panel-dashboard">📊 Dashboard</button>
+            <button class="tab-btn" data-tab="panel-sites">🏢 Sites Manager</button>
+            
+            <div class="nav-group-label margin-top-10">AUTHORING WORKSPACE</div>
+            <button class="tab-btn" data-tab="panel-site">✏️ Site Editor</button>
+            <button class="tab-btn" data-tab="panel-floors">📶 Multi-Floor Manager</button>
+            <button class="tab-btn" data-tab="panel-models">📦 3D GLB Model</button>
+            <button class="tab-btn" data-tab="panel-calibration">📐 Spatial Calibration</button>
+            <button class="tab-btn" data-tab="panel-graph">🛣️ Navigation Graph</button>
+            <button class="tab-btn" data-tab="panel-destinations">📍 Destinations</button>
+            <button class="tab-btn" data-tab="panel-qr">🏁 Primary Site QR</button>
+            <button class="tab-btn" data-tab="panel-vps">🌐 VPS Config</button>
+            <button class="tab-btn" data-tab="panel-validation">🛡️ Validation Center</button>
+
+            <div class="nav-group-label margin-top-10">PUBLISHING & AUDIT</div>
+            <button class="tab-btn" data-tab="panel-versions">📜 Version History</button>
+            <button class="tab-btn" data-tab="panel-settings">⚙️ Platform Settings</button>
           </div>
 
-          <!-- Panel 1: Site General Settings -->
-          <div class="tab-panel active" id="panel-site">
+          <!-- Panel: Dashboard Overview -->
+          <div class="tab-panel active" id="panel-dashboard">
+            <div class="panel-section">
+              <h3 class="section-title">Site Health Dashboard</h3>
+              <div class="health-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;">
+                <div class="health-card"><span>MODEL</span><strong class="text-green">READY</strong></div>
+                <div class="health-card"><span>CALIBRATION</span><strong class="text-green">READY</strong></div>
+                <div class="health-card"><span>NAVIGATION</span><strong class="text-green">READY</strong></div>
+                <div class="health-card"><span>DESTINATIONS</span><strong class="text-green">READY</strong></div>
+                <div class="health-card"><span>SITE QR</span><strong class="text-green">READY</strong></div>
+                <div class="health-card"><span>VPS</span><strong class="text-orange">UNAVAILABLE</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Panel: Sites Manager -->
+          <div class="tab-panel" id="panel-sites">
+            <div class="panel-section">
+              <h3 class="section-title">Active Sites</h3>
+              <div class="form-group">
+                <label>Filter Sites</label>
+                <input type="text" placeholder="Search siteId..." />
+              </div>
+              <button class="btn btn-secondary full-width">+ Create New Site</button>
+            </div>
+          </div>
+
+          <!-- Panel: Site Meta Editor -->
+          <div class="tab-panel" id="panel-site">
             <div class="panel-section">
               <h3 class="section-title">Site General Settings</h3>
               
               <div class="form-group">
                 <label for="input-site-id">Site ID (Immutable)</label>
-                <input type="text" id="input-site-id" value="sample1" readonly />
+                <input type="text" id="input-site-id" value="controlled_test_site" readonly />
               </div>
 
               <div class="form-group">
                 <label for="input-site-name">Site Name</label>
-                <input type="text" id="input-site-name" value="Photogrammetry Scan (sample1)" />
+                <input type="text" id="input-site-name" value="Controlled Calibration Site" />
               </div>
 
               <div class="form-group">
                 <label for="input-site-type">Environment Category</label>
                 <select id="input-site-type">
-                  <option value="photogrammetry" selected>Photogrammetry 3D Scan</option>
-                  <option value="campus">University / Campus</option>
+                  <option value="campus" selected>University / Campus</option>
+                  <option value="photogrammetry">Photogrammetry 3D Scan</option>
                   <option value="hospital">Hospital / Healthcare</option>
                   <option value="mall">Shopping Mall / Retail</option>
                   <option value="airport">Airport / Transit Hub</option>
                   <option value="office">Office / Commercial</option>
-                  <option value="warehouse">Warehouse / Industrial</option>
                 </select>
               </div>
 
               <div class="form-group">
                 <label for="input-site-desc">Description</label>
-                <textarea id="input-site-desc" rows="3">Real 3D GLB model scan with VPS camera pose tracking and indoor pathfinding.</textarea>
+                <textarea id="input-site-desc" rows="3">Standardized 10m x 10m physical field test site with right-handed metric frame.</textarea>
               </div>
 
               <button id="btn-save-site-info" class="btn btn-secondary full-width">Save Site Meta</button>
             </div>
           </div>
 
-          <!-- Panel 2: 3D Models -->
+          <!-- Panel: Multi-Floor Manager -->
+          <div class="tab-panel" id="panel-floors">
+            <div class="panel-section">
+              <h3 class="section-title">Multi-Floor Manager</h3>
+              <div class="form-group">
+                <label>Active Floor Selector</label>
+                <select id="select-active-floor">
+                  <option value="floor_1">Floor 1 (Ground Floor - 0.0m)</option>
+                  <option value="floor_2">Floor 2 (Second Floor - 3.5m)</option>
+                </select>
+              </div>
+              <button class="btn btn-secondary full-width">+ Add New Floor</button>
+            </div>
+          </div>
+
+          <!-- Panel: 3D GLB Models -->
           <div class="tab-panel" id="panel-models">
             <div class="panel-section">
               <h3 class="section-title">Upload Real 3D GLB Asset</h3>
@@ -141,9 +195,12 @@
                 <div class="upload-text">Drag & drop GLB file here, or <span class="highlight">browse</span></div>
               </div>
 
-              <div id="upload-status" class="status-msg">Current Asset: <code>sample1.glb</code> (1.78 MB)</div>
+              <div id="upload-status" class="status-msg">Current Asset: <code>controlled_test_site.glb</code> (1.42 MB)</div>
             </div>
+          </div>
 
+          <!-- Panel: Spatial Calibration -->
+          <div class="tab-panel" id="panel-calibration">
             <div class="panel-section">
               <h3 class="section-title">Model Transform & Scale</h3>
               
@@ -169,11 +226,11 @@
                 </div>
               </div>
 
-              <button id="btn-apply-transform" class="btn btn-secondary full-width">Apply Model Transform</button>
+              <button id="btn-apply-transform" class="btn btn-secondary full-width">Apply Spatial Transform</button>
             </div>
           </div>
 
-          <!-- Panel 3: Nav Graph Authoring -->
+          <!-- Panel: Nav Graph Authoring -->
           <div class="tab-panel" id="panel-graph">
             <div class="panel-section">
               <h3 class="section-title">Navigation Graph Tools</h3>
@@ -195,7 +252,6 @@
                   <option value="stairs">Staircase Transition</option>
                   <option value="elevator">Elevator Shaft</option>
                   <option value="ramp">Accessibility Ramp</option>
-                  <option value="escalator">Escalator</option>
                 </select>
               </div>
 
@@ -209,14 +265,14 @@
             </div>
           </div>
 
-          <!-- Panel 4: Destinations -->
+          <!-- Panel: Destinations -->
           <div class="tab-panel" id="panel-destinations">
             <div class="panel-section">
               <h3 class="section-title">Add Named Location</h3>
               
               <div class="form-group">
                 <label for="input-dest-name">Location / Room Name</label>
-                <input type="text" id="input-dest-name" placeholder="e.g. Reception Desk" />
+                <input type="text" id="input-dest-name" placeholder="e.g. Main Reception Desk" />
               </div>
 
               <div class="form-group">
@@ -241,27 +297,59 @@
             </div>
           </div>
 
-          <!-- Panel 5: VPS & Calibration -->
+          <!-- Panel: Primary Site QR -->
+          <div class="tab-panel" id="panel-qr">
+            <div class="panel-section">
+              <h3 class="section-title">Primary Site Entrance QR</h3>
+              <p class="section-desc">The mobile app scans this QR at the entrance to fetch published site data.</p>
+              <button id="btn-panel-qr" class="btn btn-accent full-width">Generate & View QR Code</button>
+            </div>
+          </div>
+
+          <!-- Panel: VPS Config -->
           <div class="tab-panel" id="panel-vps">
             <div class="panel-section">
               <h3 class="section-title">VPS Configuration</h3>
-
-              <div class="form-group">
-                <label for="input-vps-url">VPS Server URL</label>
-                <input type="text" id="input-vps-url" value="https://pathlume.app/api/vps" />
+              <div class="status-badge-inline text-orange">VPS: UNAVAILABLE (ARCORE-ONLY MODE)</div>
+              
+              <div class="form-group margin-top-10">
+                <label for="input-vps-url">VPS Server Endpoint</label>
+                <input type="text" id="input-vps-url" value="https://pathlume.app/api/vps" readonly />
               </div>
 
               <div class="form-group">
-                <label for="input-vps-mapid">VPS Map ID</label>
-                <input type="text" id="input-vps-mapid" value="vps_sample1_mesh" />
+                <label for="input-vps-mapid">VPS Map Identifier</label>
+                <input type="text" id="input-vps-mapid" value="vps_controlled_mesh" />
               </div>
 
-              <div class="form-group">
-                <label for="input-vps-rate">Frame Sampling Rate (Hz)</label>
-                <input type="number" id="input-vps-rate" value="5" min="1" max="30" />
-              </div>
+              <button id="btn-save-vps" class="btn btn-secondary full-width">Save VPS Config Metadata</button>
+            </div>
+          </div>
 
-              <button id="btn-save-vps" class="btn btn-secondary full-width">Save VPS Config</button>
+          <!-- Panel: Validation Center -->
+          <div class="tab-panel" id="panel-validation">
+            <div class="panel-section">
+              <h3 class="section-title">Validation Center</h3>
+              <p class="section-desc">Runs automated integrity checks before site publishing.</p>
+              <button id="btn-run-validation" class="btn btn-primary full-width">Run Full Site Validation</button>
+            </div>
+          </div>
+
+          <!-- Panel: Version History -->
+          <div class="tab-panel" id="panel-versions">
+            <div class="panel-section">
+              <h3 class="section-title">Published Version History</h3>
+              <ul class="item-list">
+                <li class="item-card"><strong>Version v1.0</strong> — Published 2026-08-20 (Active)</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Panel: Platform Settings -->
+          <div class="tab-panel" id="panel-settings">
+            <div class="panel-section">
+              <h3 class="section-title">Authoring Settings</h3>
+              <p class="section-desc">PathLume Platform Configuration & Firebase Backend Domain.</p>
             </div>
           </div>
 
@@ -320,11 +408,11 @@
           <div class="publish-details-grid">
             <div class="detail-box">
               <span class="detail-label">Site ID</span>
-              <strong id="pub-site-id" class="detail-value">sample1</strong>
+              <strong id="pub-site-id" class="detail-value">controlled_test_site</strong>
             </div>
             <div class="detail-box">
               <span class="detail-label">Site Name</span>
-              <strong id="pub-site-name" class="detail-value">Photogrammetry Scan</strong>
+              <strong id="pub-site-name" class="detail-value">Controlled Calibration Site</strong>
             </div>
             <div class="detail-box">
               <span class="detail-label">Backend Sync</span>
@@ -334,11 +422,11 @@
 
           <div class="qr-preview-container">
             <h3>Primary Site Entrance QR Code</h3>
-            <p class="qr-subtext">Mobile users can scan this QR code with the Android App to instantly load this site.</p>
+            <p class="qr-subtext">Mobile users scan this QR code with the Android App to instantly load published site data.</p>
             <div class="qr-canvas-box">
               <canvas id="pub-qr-canvas"></canvas>
             </div>
-            <div id="pub-qr-url" class="qr-url-text">https://pathlume.app/s/sample1</div>
+            <div id="pub-qr-url" class="qr-url-text">https://pathlume.app/s/controlled_test_site</div>
           </div>
         </div>
 
@@ -376,7 +464,7 @@
           <div class="qr-preview-box">
             <canvas id="qr-canvas"></canvas>
           </div>
-          <div class="qr-url-text" id="qr-modal-url">https://pathlume.app/s/sample1</div>
+          <div class="qr-url-text" id="qr-modal-url">https://pathlume.app/s/controlled_test_site</div>
           <p class="qr-desc">Print and place this QR code at the physical building entrance.</p>
         </div>
         <div class="modal-footer">

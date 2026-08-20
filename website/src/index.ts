@@ -17,6 +17,7 @@ import {
   SiteDestinationData,
   SiteMetadata
 } from './firebase';
+import { validateSiteConfiguration } from './validation';
 
 class PathLumeAdminApp {
   private currentSiteId = 'sample1';
@@ -581,22 +582,17 @@ class PathLumeAdminApp {
   }
 
   private validateSite(): { valid: boolean; errors: string[]; checks: string[] } {
-    const errors: string[] = [];
-    const checks: string[] = [];
+    const report = validateSiteConfiguration(
+      this.currentSiteMetadata,
+      this.nodes,
+      this.edges,
+      this.destinations
+    );
 
-    if (!this.currentSiteId) errors.push('Site ID is required.');
-    else checks.push(`Site ID defined: ${this.currentSiteId}`);
+    const errors = report.issues.filter(i => i.severity === 'ERROR').map(i => `[${i.category}] ${i.message}`);
+    const checks = report.issues.filter(i => i.severity !== 'ERROR').map(i => `[${i.category}] ${i.message}`);
 
-    if (this.nodes.length < 2) errors.push(`Navigation graph must contain at least 2 nodes (Found ${this.nodes.length}).`);
-    else checks.push(`Navigation graph contains ${this.nodes.length} nodes.`);
-
-    if (this.edges.length < 1) errors.push(`Navigation graph must contain at least 1 edge (Found ${this.edges.length}).`);
-    else checks.push(`Navigation graph contains ${this.edges.length} edges.`);
-
-    if (this.destinations.length < 1) errors.push(`Site must contain at least 1 destination (Found ${this.destinations.length}).`);
-    else checks.push(`Site contains ${this.destinations.length} destinations.`);
-
-    return { valid: errors.length === 0, errors, checks };
+    return { valid: report.canPublish, errors, checks };
   }
 
   private async loadSiteData(siteId: string) {

@@ -4,7 +4,7 @@
   "type": "demo",
   "description": "Universal indoor navigation demo with multi-building & multi-floor support",
   "status": "active",
-  "version": 20,
+  "version": 22,
   "qrUrl": "https://pathlume.app/s/demo_site",
   "buildings": [
     {
@@ -407,5 +407,5 @@
       "scale": 1
     }
   },
-  "publishedAt": 1787245407304
+  "publishedAt": 1787245854673
 }
