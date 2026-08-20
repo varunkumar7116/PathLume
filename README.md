@@ -1,43 +1,85 @@
-
-> npm install pathlume
-```
-
 # PathLume
 
-PathLume is a javascript 3D indoor AR navigation and navigation mesh construction/querying library.
-
-PathLume is ideal for use in indoor positioning, AR navigation, simulations, and creative 3D web applications.
-
-**Features**
-
-- Universal Site & One-QR Code indoor AR navigation architecture
-- VPS pose localization & ARCore continuous motion tracking
-- Navigation mesh generation from 3D geometry
-- Navigation mesh querying and A* pathfinding
-- Single and multi-tile navigation mesh support
-- Fully JSON serializable data structures
-- Pure javascript/typescript, written to be highly tree-shakeable
-- Works with any 3D engine/library - Three.js, Babylon.js, PlayCanvas, or custom engines
-
-**Documentation**
-
-This README provides curated explanations, guides, and examples to help you get started with PathLume.
-
-API documentation can be found at [pathlume.dev/docs](https://pathlume.dev/docs).
-
-**Installation**
-
-PathLume is available on npm:
+**PathLume** (v0.4.1) is an end-to-end 3D indoor navigation framework combining Navigation Mesh (NavMesh) generation, Visual Positioning System (VPS) pose tracking, multi-site graph management, a REST API server, a WebGL 3D viewer, and a native Android AR navigation application.
 
 ```bash
 npm install pathlume
 ```
 
-An example of using navcat without any build tools using unpkg can be found here: https://github.com/isaac-mason/navcat-vanilla-html-js-example
+---
 
-**Changelog**
+## 🌟 Key Features & Architecture
 
-See the [CHANGELOG.md](./CHANGELOG.md) for a detailed list of changes in each version.
+PathLume provides a complete suite of components for 3D floor-based navigation:
+
+1. **Core Navigation Engine (`pathlume`)**:
+   - Voxel-based navigation mesh generation from 3D geometry (`pathlume/blocks`).
+   - Spatial BV-tree queries, compact heightfield region simplification, and contour polygon extraction.
+   - A* pathfinder, path corridor generation, and smooth path interpolation.
+   - Three.js rendering utilities and debug helpers (`pathlume/three`).
+
+2. **Visual Positioning System (VPS) & Pose Fusion**:
+   - Camera frame localization and pose estimation.
+   - ARCore 6DoF high-frequency tracking provider with smooth VPS drift correction (`PoseFusion`).
+   - QR-code based site localization (`QRPayloadParser`).
+
+3. **Multi-Site & Graph Repository (`src/site/`, `src/maps/`)**:
+   - Multi-building site configuration registry and floor plan graph manager.
+   - Walkable navigation nodes, edges, destination management, and model asset references.
+
+4. **Standalone REST API Server (`src/server/apiServer.ts`)**:
+   - HTTP server delivering endpoints for sites (`/api/sites`), navigation graphs (`/api/sites/:siteId/navigation`), destinations, and VPS frame localization (`/api/vps/localize`).
+
+5. **Native Android Application (`android/app`)**:
+   - Built with Jetpack Compose & Kotlin.
+   - CameraX QR scanning & Google ARCore 6DoF tracking integration.
+   - Offline asset caching (`ModelCacheManager`) bundled with `sample1.glb`.
+   - HTTP/HTTPS network connectivity enabled (`usesCleartextTraffic="true"`).
+
+6. **WebGL 3D Viewer & Web App (`website/`)**:
+   - Interactive Three.js 3D viewer with site selector, real-time pathfinding visualization, and Firebase Hosting integration (`pathlume-9d8e9.web.app`).
+
+7. **Standardized 3D Workflow**:
+   - Optimized `sample.glb` and `sample1.glb` photogrammetry models for fast, predictable testing and deployment.
+
+---
+
+## 🚀 Quick Commands & Workflow
+
+### Build & Test Core Library
+```bash
+# Install dependencies
+pnpm install
+
+# Run unit test suite (14 test files, 158 tests)
+npm test
+
+# Build production bundles (dist/index.js, dist/blocks.js, dist/three.js)
+npm run build
+
+# Rebuild README documentation from template
+npm run docs
+```
+
+### Build Web Application
+```bash
+cd website
+npm run build
+```
+
+### Build Android APK
+```bash
+cd android
+.\gradlew.bat assembleDebug
+```
+*Output APK located at: `android/app/build/outputs/apk/debug/app-debug.apk`*
+
+---
+
+**Documentation & Changelog**
+
+- See [FILE_STRUCTURE.md](./FILE_STRUCTURE.md) for the project directory tree.
+- See [CHANGELOG.md](./CHANGELOG.md) for version release details.
 
 **Examples**
 
@@ -255,14 +297,25 @@ See the [CHANGELOG.md](./CHANGELOG.md) for a detailed list of changes in each ve
         Rasterize Filled Volume
       </a>
     </td>
+    <td align="center">
+      <a href="https://navcat.dev/examples#example-sample-navigation">
+        <img src="./examples/public/screenshots/example-sample-navigation.png" width="180" height="120" style="object-fit:cover;"/><br/>
+        Sample GLB Navigation Test
+      </a>
+    </td>
   </tr>
 </table>
 
 
 ## Table of Contents
 
+- [🌟 Key Features & Architecture](#-key-features-architecture)
+- [🚀 Quick Commands & Workflow](#-quick-commands-workflow)
+  - [Build & Test Core Library](#build-test-core-library)
+  - [Build Web Application](#build-web-application)
+  - [Build Android APK](#build-android-apk)
 - [What is a Navigation Mesh?](#what-is-a-navigation-mesh)
-- [Can PathLume be integrated with my engine/library?](#can-pathlume-be-integrated-with-my-enginelibrary)
+- [Can navcat be integrated with my engine/library?](#can-navcat-be-integrated-with-my-enginelibrary)
 - [Quick Start / Minimal Example](#quick-start-minimal-example)
 - [Navigation Mesh Querying](#navigation-mesh-querying)
   - [`findPath`](#findpath)
@@ -307,8 +360,8 @@ See the [CHANGELOG.md](./CHANGELOG.md) for a detailed list of changes in each ve
 - [Using Externally Created Navigation Meshes](#using-externally-created-navigation-meshes)
 - [Saving and Loading NavMeshes](#saving-and-loading-navmeshes)
 - [Debug Utilities](#debug-utilities)
-- [`pathlume/three`](#pathlumethree)
-- [How does PathLume compare to other libraries?](#how-does-pathlume-compare-to-other-libraries)
+- [`navcat/three`](#navcatthree)
+- [How does navcat compare to other libraries?](#how-does-navcat-compare-to-other-libraries)
 - [Community](#community)
 - [Acknowledgements](#acknowledgements)
 
@@ -318,30 +371,30 @@ A navigation mesh (or navmesh) is a simplified representation of a 3D environmen
 
 ![./docs/1-whats-a-navmesh](./docs/1-whats-a-navmesh.png)
 
-## Can PathLume be integrated with my engine/library?
+## Can navcat be integrated with my engine/library?
 
-PathLume is agnostic of rendering or game engine library, so it will work well with any javascript engine - Babylon.js, PlayCanvas, Three.js, or your own engine.
+navcat is agnostic of rendering or game engine library, so it will work well with any javascript engine - Babylon.js, PlayCanvas, Three.js, or your own engine.
 
-If you are using threejs, you may make use of the utilities in the `pathlume/three` entrypoint, see the [pathlume/three docs](#pathlumethree). Integrations for other engines may be added in future.
+If you are using threejs, you may make use of the utilities in the `navcat/three` entrypoint, see the [navcat/three docs](#navcatthree). Integrations for other engines may be added in future.
 
-PathLume adheres to the OpenGL conventions:
+navcat adheres to the OpenGL conventions:
 
 - Uses the right-handed coordinate system
 - Indices should be in counter-clockwise winding order
 
 If you are importing a navmesh created externally, note that navmesh poly vertices must be indexed / must share vertices between adjacent polygons.
 
-If your environment uses a different coordinate system, you will need to transform coordinates going into and out of PathLume.
+If your environment uses a different coordinate system, you will need to transform coordinates going into and out of navcat.
 
-The examples use threejs for rendering, but the core PathLume APIs are completely agnostic of any rendering or game engine libraries.
+The examples use threejs for rendering, but the core navcat APIs are completely agnostic of any rendering or game engine libraries.
 
 ## Quick Start / Minimal Example
 
-Below is a minimal example of using the presets in `pathlume/blocks` to generate a navigation mesh, and then using APIs in `pathlume` to find a path on the generated navmesh.
+Below is a minimal example of using the presets in `navcat/blocks` to generate a navigation mesh, and then using APIs in `navcat` to find a path on the generated navmesh.
 
 For information on how to tune these options, and how the generation process works under the hood with images, see the [Navigation mesh generation](#navigation-mesh-generation) section below.
 
-If you are using threejs, you can find [a threejs-specific version of this snippet in the pathlume/three section](#pathlumethree).
+If you are using threejs, you can find [a threejs-specific version of this snippet in the navcat/three section](#navcatthree).
 
 ```ts
 import { DEFAULT_QUERY_FILTER, findPath, type Vec3 } from 'navcat';
@@ -1704,7 +1757,7 @@ export type NavMeshPoly = {
 
     /**
      * Packed data representing neighbor polygons references and flags for each edge.
-     * This is usually computed by the navcat's `buildPolyNeighbours` function .
+     * This is usually computed by the pathlume's `buildPolyNeighbours` function .
      */
     neis: number[];
 
@@ -2549,26 +2602,6 @@ recast-navigation-js is a WebAssembly port of the Recast and Detour C++ librarie
 
 Both three-pathfinding (for three.js) and yuka provide navigation mesh querying capabilities, but neither provide navigation mesh generation. This library also provides support for dynamic off mesh connections for implementing traversal actions like jumping gaps, climbing ladders, teleporting, etc.
 
-## Android Native Application
-
-PathLume includes a native Android application in [`android/`](file:///e:/pro1/android) built with Jetpack Compose, CameraX, ML Kit, and ARCore.
-
-For detailed setup, build, and usage instructions, see [android/README.md](file:///e:/pro1/android/README.md).
-
-### Quick Start: Build & Run APK
-
-```powershell
-# Build Debug APK
-cd android
-.\gradlew.bat assembleDebug
-
-# Install to connected device / emulator
-.\gradlew.bat installDebug
-```
-
-Built APK location:
-`android/app/build/outputs/apk/debug/app-debug.apk`
-
 ## Community
 
 **Used in**
@@ -2587,119 +2620,3 @@ https://www.webgamedev.com/discord
 - This library is heavily inspired by the recastnavigation library: https://github.com/recastnavigation/recastnavigation
   - Although navcat is not a direct port of recastnavigation, the core navigation mesh generation approach is based on the recastnavigation library's voxelization-based approach.
 - Shoutout to @verekia for the cute name idea :)
-
----
-
-# PathLume — Production System Documentation
-
-## 1. Architecture
-PathLume consists of an Administrative Web Hub (`website/`), Firebase Cloud Backend (Auth, Firestore, Storage), and a Native Android AR App (`android/`).
-
-```text
-ADMIN WEB HUB  ──(Upload GLB & Edit Graph)──> FIREBASE (Auth, Firestore, Storage)
-                                                     │
-                                             (Scan One QR Code)
-                                                     │
-                                                     ▼
-                                             ANDROID AR APP
-                                         (ARCore + VPS + PoseFusion + A*)
-```
-
-## 2. Firebase Setup
-Create a Firebase Project in the Firebase Console (https://console.firebase.google.com). Enable:
-1. **Firebase Authentication**: Email/Password Provider.
-2. **Cloud Firestore Database**: Production mode.
-3. **Firebase Storage**: Default bucket for GLB binary files.
-
-## 3. Firebase Project Configuration
-Environment variables (`.env`) for Web Hub:
-```env
-VITE_FIREBASE_API_KEY=your_api_key
-VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your_project
-VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-VITE_FIREBASE_APP_ID=your_app_id
-```
-
-## 4. Firestore Structure
-- `sites/{siteId}`: Metadata document (`name`, `type`, `description`, `version`, `published`, `calibration`)
-- `sites/{siteId}/nodes/{nodeId}`: Navigation graph node (`x`, `y`, `z`, `floorId`, `buildingId`, `type`)
-- `sites/{siteId}/edges/{edgeId}`: Navigation edge (`from`, `to`, `distance`, `walkable`, `transitionType`)
-- `sites/{siteId}/destinations/{destId}`: Mapped target (`name`, `category`, `buildingId`, `floorId`, `position`, `navigationNodeId`)
-- `publishedSites/{siteId}`: Production immutable site definition snapshot.
-
-## 5. Storage Structure
-- `sites/{siteId}/models/v{version}/{fileName}.glb`: GLB binary assets.
-
-## 6. Security Rules
-- `firestore.rules`: Authenticated admin write access; public read access for mobile apps.
-- `storage.rules`: Authenticated admin write access; public read access for GLB assets.
-
-## 7. Environment Variables
-- `PORT`: Node server API port (Default: `8080` / `3000`).
-- `VITE_FIREBASE_*`: Web hub Firebase credentials.
-
-## 8. Web Setup
-```powershell
-cd website
-npm install
-npm run dev
-```
-
-## 9. Android Setup
-Requires Android SDK API 34+ and ARCore support.
-Open `android/` in Android Studio or build via Gradle CLI.
-
-## 10. Build Commands
-- Web Hub Build: `npm run build --prefix website`
-- TypeScript Core Build: `npm run build`
-- Android APK Build: `cd android && .\gradlew.bat assembleDebug`
-
-## 11. Run Commands
-- Run Web Hub: `npm run dev --prefix website`
-- Run API Server: `npm start`
-- Run Vitest Suite: `npx vitest run`
-- Run Android Unit Tests: `cd android && .\gradlew.bat test`
-
-## 12. GLB Upload Process
-Admin opens **3D Models** panel, drags `.glb` file. Web Hub uploads asset to Firebase Storage path `sites/{siteId}/models/v{version}/{filename}.glb` and assigns the model URL in Firestore.
-
-## 13. Site Creation Process
-Admin navigates to **Site Config**, enters Site ID, Name, Category, Description, and clicks **Save Site Meta**.
-
-## 14. Navigation Graph Process
-Admin opens **Nav Graph** tab, toggles **Add Nodes** (clicks 3D mesh surface), selects **Connect Edges** (clicks pairs of nodes), and picks transition type (`walk`, `stairs`, `elevator`, `ramp`, `escalator`).
-
-## 15. Calibration Process
-Admin opens **Model Transform & Scale** section to adjust scale multiplier, Y-rotation, offset X, and offset Z in meters to match the physical Site World coordinate system.
-
-## 16. QR Generation
-Admin clicks **Primary QR**. System generates `https://pathlume.app/s/{siteId}` QR code on canvas with PNG download and Print options.
-
-## 17. Android QR Workflow
-User launches app -> Scans site QR code -> `QRPayloadParser` extracts `siteId` -> Fetches site metadata & navigation graph from Firebase -> Downloads & caches GLB model -> Launches AR camera view.
-
-## 18. ARCore Requirements
-Physical Android device supporting Google Play Services for AR. Non-ARCore devices cleanly display: *"AR navigation is not supported on this device."*
-
-## 19. VPS Setup
-`RealVpsProvider` sends captured camera frames to VPS endpoint (`/api/vps/localize`). Provider calculates location pose, heading, floor, and accuracy.
-
-## 20. Pose Fusion
-`PoseFusionManager` combines relative 60Hz ARCore frame deltas with 1Hz absolute VPS pose corrections into a continuous `FusedPose` in Site World coordinates.
-
-## 21. A*
-`AStarEngine` calculates shortest path starting from user's current fused position to destination node, accounting for vertical transition multipliers (`stairs`: 1.5x, `elevator`: 1.2x).
-
-## 22. Troubleshooting
-- *GLB Not Displaying*: Verify CORS configuration on Firebase Storage bucket.
-- *AR Camera Black Screen*: Verify camera permissions are granted in Android Settings.
-- *Graph Disconnected*: Run **Validate Site** in Web Hub.
-
-## 23. Real Device Testing
-Connect physical ARCore Android device via USB debugging, execute `.\gradlew.bat installDebug`, scan site QR code at entrance, and walk along AR path.
-
-## 24. Known Limitations
-- High physical occlusion (e.g. dense metal pillars) can temporarily degrade VPS confidence. Pose Fusion mitigates this with dead reckoning.
-

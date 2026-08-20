@@ -1,47 +1,85 @@
-![./docs/cover.png](./docs/cover.png)
+# PathLume
 
-[![Version](https://img.shields.io/npm/v/navcat?style=for-the-badge)](https://www.npmjs.com/package/navcat)
-![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/isaac-mason/navcat/main.yml?style=for-the-badge)
-[![Downloads](https://img.shields.io/npm/dt/navcat.svg?style=for-the-badge)](https://www.npmjs.com/package/navcat)
+**PathLume** (v0.4.1) is an end-to-end 3D indoor navigation framework combining Navigation Mesh (NavMesh) generation, Visual Positioning System (VPS) pose tracking, multi-site graph management, a REST API server, a WebGL 3D viewer, and a native Android AR navigation application.
 
 ```bash
-> npm install navcat
+npm install pathlume
 ```
 
-# navcat
+---
 
-navcat is a javascript navigation mesh construction and querying library for 3D floor-based navigation.
+## 🌟 Key Features & Architecture
 
-navcat is ideal for use in games, simulations, and creative websites that require navigation in complex 3D environments.
+PathLume provides a complete suite of components for 3D floor-based navigation:
 
-**Features**
+1. **Core Navigation Engine (`pathlume`)**:
+   - Voxel-based navigation mesh generation from 3D geometry (`pathlume/blocks`).
+   - Spatial BV-tree queries, compact heightfield region simplification, and contour polygon extraction.
+   - A* pathfinder, path corridor generation, and smooth path interpolation.
+   - Three.js rendering utilities and debug helpers (`pathlume/three`).
 
-- Navigation mesh generation from 3D geometry
-- Navigation mesh querying
-- Single and multi-tile navigation mesh support
-- Fully JSON serializable data structures
-- Pure javascript, written to be highly tree-shakeable
-- Works with any javascript engine/library - Babylon.js, PlayCanvas, Three.js, or your own engine
+2. **Visual Positioning System (VPS) & Pose Fusion**:
+   - Camera frame localization and pose estimation.
+   - ARCore 6DoF high-frequency tracking provider with smooth VPS drift correction (`PoseFusion`).
+   - QR-code based site localization (`QRPayloadParser`).
 
-**Documentation**
+3. **Multi-Site & Graph Repository (`src/site/`, `src/maps/`)**:
+   - Multi-building site configuration registry and floor plan graph manager.
+   - Walkable navigation nodes, edges, destination management, and model asset references.
 
-This README provides curated explanations, guides, and examples to help you get started with navcat.
+4. **Standalone REST API Server (`src/server/apiServer.ts`)**:
+   - HTTP server delivering endpoints for sites (`/api/sites`), navigation graphs (`/api/sites/:siteId/navigation`), destinations, and VPS frame localization (`/api/vps/localize`).
 
-API documentation can be found at [navcat.dev/docs](https://navcat.dev/docs).
+5. **Native Android Application (`android/app`)**:
+   - Built with Jetpack Compose & Kotlin.
+   - CameraX QR scanning & Google ARCore 6DoF tracking integration.
+   - Offline asset caching (`ModelCacheManager`) bundled with `sample1.glb`.
+   - HTTP/HTTPS network connectivity enabled (`usesCleartextTraffic="true"`).
 
-**Installation**
+6. **WebGL 3D Viewer & Web App (`website/`)**:
+   - Interactive Three.js 3D viewer with site selector, real-time pathfinding visualization, and Firebase Hosting integration (`pathlume-9d8e9.web.app`).
 
-navcat is available on npm:
+7. **Standardized 3D Workflow**:
+   - Optimized `sample.glb` and `sample1.glb` photogrammetry models for fast, predictable testing and deployment.
 
+---
+
+## 🚀 Quick Commands & Workflow
+
+### Build & Test Core Library
 ```bash
-npm install navcat
+# Install dependencies
+pnpm install
+
+# Run unit test suite (14 test files, 158 tests)
+npm test
+
+# Build production bundles (dist/index.js, dist/blocks.js, dist/three.js)
+npm run build
+
+# Rebuild README documentation from template
+npm run docs
 ```
 
-An example of using navcat without any build tools using unpkg can be found here: https://github.com/isaac-mason/navcat-vanilla-html-js-example
+### Build Web Application
+```bash
+cd website
+npm run build
+```
 
-**Changelog**
+### Build Android APK
+```bash
+cd android
+.\gradlew.bat assembleDebug
+```
+*Output APK located at: `android/app/build/outputs/apk/debug/app-debug.apk`*
 
-See the [CHANGELOG.md](./CHANGELOG.md) for a detailed list of changes in each version.
+---
+
+**Documentation & Changelog**
+
+- See [FILE_STRUCTURE.md](./FILE_STRUCTURE.md) for the project directory tree.
+- See [CHANGELOG.md](./CHANGELOG.md) for version release details.
 
 **Examples**
 

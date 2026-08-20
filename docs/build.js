@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
 // utility to find all .ts files in a directory
 function getAllSourceFiles(dir) {
@@ -17,19 +20,19 @@ function getAllSourceFiles(dir) {
 }
 
 // resolve module path to source directory based on package.json exports
-const projectRoot = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
+const projectRoot = path.join(currentDir, '..');
 const packageJson = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf-8'));
 
 function resolveModuleToSourceDir(modulePath) {
     const packageName = packageJson.name;
 
     // Handle the main package export
-    if (modulePath === packageName) {
+    if (modulePath === packageName || modulePath === 'navcat') {
         return path.join(projectRoot, 'src');
     }
 
-    // Handle subpath exports (e.g., "navcat/blocks" -> "./blocks")
-    const subpath = modulePath.replace(`${packageName}/`, '');
+    // Handle subpath exports (e.g., "pathlume/blocks" or "navcat/blocks" -> "./blocks")
+    const subpath = modulePath.replace(`${packageName}/`, '').replace('navcat/', '');
     const exportEntry = packageJson.exports?.[`./${subpath}`];
 
     if (exportEntry?.types) {
@@ -69,8 +72,8 @@ function getTsProgramForModule(modulePath) {
     return program;
 }
 
-const readmeTemplatePath = path.join(path.dirname(new URL(import.meta.url).pathname), './README.template.md');
-const readmeOutPath = path.join(path.dirname(new URL(import.meta.url).pathname), '../README.md');
+const readmeTemplatePath = path.join(currentDir, './README.template.md');
+const readmeOutPath = path.join(currentDir, '../README.md');
 
 let readmeText = fs.readFileSync(readmeTemplatePath, 'utf-8');
 
@@ -100,7 +103,7 @@ readmeText = readmeText.replace(tocRegex, tocText);
 
 /* <Examples /> */
 const examplesRegex = /<Examples\s*\/>/g;
-const examplesJsonPath = path.join(path.dirname(new URL(import.meta.url).pathname), '../examples/src/examples.json');
+const examplesJsonPath = path.join(currentDir, '../examples/src/examples.json');
 if (!fs.existsSync(examplesJsonPath)) {
     throw new Error(`Examples JSON file not found: ${examplesJsonPath}`);
 }
@@ -132,7 +135,7 @@ readmeText = readmeText.replace(examplesRegex, examplesHtml);
 /* <Example id="exampleid" /> */
 const exampleRegex = /<Example\s+id=["'](.+?)["']\s*\/>/g;
 readmeText = readmeText.replace(exampleRegex, (fullMatch, exampleId) => {
-    const examplesJsonPath = path.join(path.dirname(new URL(import.meta.url).pathname), '../examples/src/examples.json');
+    const examplesJsonPath = path.join(currentDir, '../examples/src/examples.json');
     if (!fs.existsSync(examplesJsonPath)) {
         console.warn(`Examples JSON file not found: ${examplesJsonPath}`);
         return fullMatch;
@@ -167,7 +170,7 @@ readmeText = readmeText.replace(apiDocsLinkRegex, (fullMatch, functionName) => {
 /* <ExamplesTable ids="example-find-path,example-find-smooth-path" /> */
 const examplesTableRegex = /<ExamplesTable\s+ids=["'](.+?)["']\s*\/>/g;
 readmeText = readmeText.replace(examplesTableRegex, (fullMatch, exampleIdsStr) => {
-    const examplesJsonPath = path.join(path.dirname(new URL(import.meta.url).pathname), '../examples/src/examples.json');
+    const examplesJsonPath = path.join(currentDir, '../examples/src/examples.json');
     
     if (!fs.existsSync(examplesJsonPath)) {
         console.warn(`Examples JSON file not found: ${examplesJsonPath}`);
@@ -227,7 +230,7 @@ readmeText = readmeText.replace(renderSourceRegex, (fullMatch, modulePath, typeN
 /* <Snippet source="./snippets/file.ts" select="group" /> */
 const snippetRegex = /<Snippet\s+source=["'](.+?)["']\s+select=["'](.+?)["']\s*\/>/g;
 readmeText = readmeText.replace(snippetRegex, (fullMatch, sourcePath, groupName) => {
-    const absSourcePath = path.join(path.dirname(new URL(import.meta.url).pathname), sourcePath);
+    const absSourcePath = path.join(currentDir, sourcePath);
     if (!fs.existsSync(absSourcePath)) {
         console.warn(`Snippet source file not found: ${absSourcePath}`);
         return fullMatch;
