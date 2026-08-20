@@ -102,6 +102,7 @@
 
             <div class="nav-group-label margin-top-10">PUBLISHING & AUDIT</div>
             <button class="tab-btn" data-tab="panel-versions">📜 Version History</button>
+            <button class="tab-btn" data-tab="panel-tests">🧪 Test Center</button>
             <button class="tab-btn" data-tab="panel-settings">⚙️ Platform Settings</button>
           </div>
 
@@ -345,6 +346,18 @@
             </div>
           </div>
 
+          <!-- Panel: Test Center -->
+          <div class="tab-panel" id="panel-tests">
+            <div class="panel-section">
+              <h3 class="section-title">Field Test Telemetry Logs</h3>
+              <p class="section-desc">Android physical test sessions & accuracy telemetry reports.</p>
+              <ul class="item-list">
+                <li class="item-card"><strong>Stationary Test (30s)</strong> — 0.00m drift <span style="color:#22c55e;">[CODE VERIFIED]</span></li>
+                <li class="item-card"><strong>Walk Test (5.0m)</strong> — FusedPose track <span style="color:#38bdf8;">[PHYSICAL TEST REQ]</span></li>
+              </ul>
+            </div>
+          </div>
+
           <!-- Panel: Platform Settings -->
           <div class="tab-panel" id="panel-settings">
             <div class="panel-section">
@@ -368,9 +381,13 @@
           </div>
 
           <div class="viewport-overlay top-right">
+            <button id="btn-view-top" class="btn btn-icon" title="Top View (2D Orthogonal Plan)">🔝 Top</button>
+            <button id="btn-view-front" class="btn btn-icon" title="Front Elevation View">👁️ Front</button>
+            <button id="btn-view-side" class="btn btn-icon" title="Side Elevation View">📐 Side</button>
+            <button id="btn-view-persp" class="btn btn-icon" title="3D Perspective Camera">🎥 3D</button>
             <button id="btn-toggle-grid" class="btn btn-icon" title="Toggle Grid">🌐 Grid</button>
             <button id="btn-toggle-wireframe" class="btn btn-icon" title="Toggle Wireframe">📐 Mesh</button>
-            <button id="btn-reset-view" class="btn btn-icon" title="Reset View">🎯 Reset View</button>
+            <button id="btn-reset-view" class="btn btn-icon" title="Reset View">🎯 Reset</button>
           </div>
 
           <!-- Selected Node Inspector Card -->

@@ -345,6 +345,30 @@ class PathLumeAdminApp {
       this.fitCameraToModel();
     });
 
+    document.getElementById('btn-view-top')?.addEventListener('click', () => {
+      this.camera.position.set(0, 45, 0.01);
+      this.controls.target.set(0, 0, 0);
+      this.controls.update();
+    });
+
+    document.getElementById('btn-view-front')?.addEventListener('click', () => {
+      this.camera.position.set(0, 0, 45);
+      this.controls.target.set(0, 0, 0);
+      this.controls.update();
+    });
+
+    document.getElementById('btn-view-side')?.addEventListener('click', () => {
+      this.camera.position.set(45, 0, 0);
+      this.controls.target.set(0, 0, 0);
+      this.controls.update();
+    });
+
+    document.getElementById('btn-view-persp')?.addEventListener('click', () => {
+      this.camera.position.set(0, 15, 25);
+      this.controls.target.set(0, 0, 0);
+      this.controls.update();
+    });
+
     // Auto-Chain All Nodes Button
     document.getElementById('btn-auto-chain')?.addEventListener('click', () => {
       this.autoChainNodes();
