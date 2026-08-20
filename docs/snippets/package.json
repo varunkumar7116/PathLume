@@ -2,6 +2,6 @@
     "name": "snippets",
     "private": true,
     "dependencies": {
-        "navcat": "workspace:*"
+        "pathlume": "workspace:*"
     }
 }

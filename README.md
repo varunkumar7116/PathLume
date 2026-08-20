@@ -2549,6 +2549,26 @@ recast-navigation-js is a WebAssembly port of the Recast and Detour C++ librarie
 
 Both three-pathfinding (for three.js) and yuka provide navigation mesh querying capabilities, but neither provide navigation mesh generation. This library also provides support for dynamic off mesh connections for implementing traversal actions like jumping gaps, climbing ladders, teleporting, etc.
 
+## Android Native Application
+
+PathLume includes a native Android application in [`android/`](file:///e:/pro1/android) built with Jetpack Compose, CameraX, ML Kit, and ARCore.
+
+For detailed setup, build, and usage instructions, see [android/README.md](file:///e:/pro1/android/README.md).
+
+### Quick Start: Build & Run APK
+
+```powershell
+# Build Debug APK
+cd android
+.\gradlew.bat assembleDebug
+
+# Install to connected device / emulator
+.\gradlew.bat installDebug
+```
+
+Built APK location:
+`android/app/build/outputs/apk/debug/app-debug.apk`
+
 ## Community
 
 **Used in**
@@ -2567,3 +2587,119 @@ https://www.webgamedev.com/discord
 - This library is heavily inspired by the recastnavigation library: https://github.com/recastnavigation/recastnavigation
   - Although navcat is not a direct port of recastnavigation, the core navigation mesh generation approach is based on the recastnavigation library's voxelization-based approach.
 - Shoutout to @verekia for the cute name idea :)
+
+---
+
+# PathLume — Production System Documentation
+
+## 1. Architecture
+PathLume consists of an Administrative Web Hub (`website/`), Firebase Cloud Backend (Auth, Firestore, Storage), and a Native Android AR App (`android/`).
+
+```text
+ADMIN WEB HUB  ──(Upload GLB & Edit Graph)──> FIREBASE (Auth, Firestore, Storage)
+                                                     │
+                                             (Scan One QR Code)
+                                                     │
+                                                     ▼
+                                             ANDROID AR APP
+                                         (ARCore + VPS + PoseFusion + A*)
+```
+
+## 2. Firebase Setup
+Create a Firebase Project in the Firebase Console (https://console.firebase.google.com). Enable:
+1. **Firebase Authentication**: Email/Password Provider.
+2. **Cloud Firestore Database**: Production mode.
+3. **Firebase Storage**: Default bucket for GLB binary files.
+
+## 3. Firebase Project Configuration
+Environment variables (`.env`) for Web Hub:
+```env
+VITE_FIREBASE_API_KEY=your_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project
+VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+```
+
+## 4. Firestore Structure
+- `sites/{siteId}`: Metadata document (`name`, `type`, `description`, `version`, `published`, `calibration`)
+- `sites/{siteId}/nodes/{nodeId}`: Navigation graph node (`x`, `y`, `z`, `floorId`, `buildingId`, `type`)
+- `sites/{siteId}/edges/{edgeId}`: Navigation edge (`from`, `to`, `distance`, `walkable`, `transitionType`)
+- `sites/{siteId}/destinations/{destId}`: Mapped target (`name`, `category`, `buildingId`, `floorId`, `position`, `navigationNodeId`)
+- `publishedSites/{siteId}`: Production immutable site definition snapshot.
+
+## 5. Storage Structure
+- `sites/{siteId}/models/v{version}/{fileName}.glb`: GLB binary assets.
+
+## 6. Security Rules
+- `firestore.rules`: Authenticated admin write access; public read access for mobile apps.
+- `storage.rules`: Authenticated admin write access; public read access for GLB assets.
+
+## 7. Environment Variables
+- `PORT`: Node server API port (Default: `8080` / `3000`).
+- `VITE_FIREBASE_*`: Web hub Firebase credentials.
+
+## 8. Web Setup
+```powershell
+cd website
+npm install
+npm run dev
+```
+
+## 9. Android Setup
+Requires Android SDK API 34+ and ARCore support.
+Open `android/` in Android Studio or build via Gradle CLI.
+
+## 10. Build Commands
+- Web Hub Build: `npm run build --prefix website`
+- TypeScript Core Build: `npm run build`
+- Android APK Build: `cd android && .\gradlew.bat assembleDebug`
+
+## 11. Run Commands
+- Run Web Hub: `npm run dev --prefix website`
+- Run API Server: `npm start`
+- Run Vitest Suite: `npx vitest run`
+- Run Android Unit Tests: `cd android && .\gradlew.bat test`
+
+## 12. GLB Upload Process
+Admin opens **3D Models** panel, drags `.glb` file. Web Hub uploads asset to Firebase Storage path `sites/{siteId}/models/v{version}/{filename}.glb` and assigns the model URL in Firestore.
+
+## 13. Site Creation Process
+Admin navigates to **Site Config**, enters Site ID, Name, Category, Description, and clicks **Save Site Meta**.
+
+## 14. Navigation Graph Process
+Admin opens **Nav Graph** tab, toggles **Add Nodes** (clicks 3D mesh surface), selects **Connect Edges** (clicks pairs of nodes), and picks transition type (`walk`, `stairs`, `elevator`, `ramp`, `escalator`).
+
+## 15. Calibration Process
+Admin opens **Model Transform & Scale** section to adjust scale multiplier, Y-rotation, offset X, and offset Z in meters to match the physical Site World coordinate system.
+
+## 16. QR Generation
+Admin clicks **Primary QR**. System generates `https://pathlume.app/s/{siteId}` QR code on canvas with PNG download and Print options.
+
+## 17. Android QR Workflow
+User launches app -> Scans site QR code -> `QRPayloadParser` extracts `siteId` -> Fetches site metadata & navigation graph from Firebase -> Downloads & caches GLB model -> Launches AR camera view.
+
+## 18. ARCore Requirements
+Physical Android device supporting Google Play Services for AR. Non-ARCore devices cleanly display: *"AR navigation is not supported on this device."*
+
+## 19. VPS Setup
+`RealVpsProvider` sends captured camera frames to VPS endpoint (`/api/vps/localize`). Provider calculates location pose, heading, floor, and accuracy.
+
+## 20. Pose Fusion
+`PoseFusionManager` combines relative 60Hz ARCore frame deltas with 1Hz absolute VPS pose corrections into a continuous `FusedPose` in Site World coordinates.
+
+## 21. A*
+`AStarEngine` calculates shortest path starting from user's current fused position to destination node, accounting for vertical transition multipliers (`stairs`: 1.5x, `elevator`: 1.2x).
+
+## 22. Troubleshooting
+- *GLB Not Displaying*: Verify CORS configuration on Firebase Storage bucket.
+- *AR Camera Black Screen*: Verify camera permissions are granted in Android Settings.
+- *Graph Disconnected*: Run **Validate Site** in Web Hub.
+
+## 23. Real Device Testing
+Connect physical ARCore Android device via USB debugging, execute `.\gradlew.bat installDebug`, scan site QR code at entrance, and walk along AR path.
+
+## 24. Known Limitations
+- High physical occlusion (e.g. dense metal pillars) can temporarily degrade VPS confidence. Pose Fusion mitigates this with dead reckoning.
+

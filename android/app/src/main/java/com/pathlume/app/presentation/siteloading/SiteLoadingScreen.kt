@@ -42,9 +42,9 @@ fun SiteLoadingScreen(
         // Mock generic site loaded based on siteId
         val mockSite = Site(
             siteId = siteId,
-            name = if (siteId == "demo_site") "Demo Universal Campus" else "Site $siteId",
-            type = "Universal Site",
-            description = "Multi-building indoor navigation site with 3D AR positioning."
+            name = if (siteId == "sample1") "Photogrammetry 3D Scan (sample1)" else if (siteId == "demo_site") "Demo Universal Campus" else "Site $siteId",
+            type = if (siteId == "sample1") "3D Photogrammetry GLB Map" else "Universal Site",
+            description = if (siteId == "sample1") "Real 3D mesh model (sample1.glb) with VPS pose tracking & pathfinding." else "Multi-building indoor navigation site with 3D AR positioning."
         )
         loadedSite = mockSite
         isLoading = false

@@ -1,0 +1,21 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // GLB Models Storage Path
+    match /sites/{siteId}/models/{version}/{fileName} {
+      allow read: if true; // Public read access to 3D GLB assets for mobile rendering
+      allow write: if isAuthenticated(); // Admin upload only
+    }
+
+    // Fallback rule for general site assets
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+  }
+}

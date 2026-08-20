@@ -358,7 +358,7 @@ orbitControls.enableDamping = true;
 
 orbitControls.target.set(-15, 1, 0);
 
-const model = await loadGLTF('./models/doors-and-keys.glb');
+const model = await loadGLTF('./models/sample.glb');
 scene.add(model.scene);
 
 // get doors and keys

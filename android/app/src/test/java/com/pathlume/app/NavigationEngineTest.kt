@@ -44,15 +44,18 @@ class NavigationEngineTest {
     @Test
     fun offRouteDetector_triggersWhenUserStraysOverThreshold() {
         val engine = AStarEngine(sampleGraph)
-        val route = engine.findRoute("node_1", "node_3")
+        val routeData = engine.findRoute("node_1", "node_3")
+        val routeNodes = routeData.map { com.pathlume.app.navigation.RouteNode(it.id, Vector3D(it.x, it.y, it.z), it.floorId, it.buildingId, it.type) }
+
+        val detector = OffRouteDetector(2.0f)
 
         // User on route
         val onRouteUser = Vector3D(2.5f, 0.2f, 0f)
-        assertFalse(OffRouteDetector.isOffRoute(onRouteUser, route))
+        assertFalse(detector.isOffRoute(onRouteUser, routeNodes))
 
         // User strays 5 meters away
         val offRouteUser = Vector3D(2.5f, 5.0f, 0f)
-        assertTrue(OffRouteDetector.isOffRoute(offRouteUser, route))
+        assertTrue(detector.isOffRoute(offRouteUser, routeNodes))
     }
 
     @Test

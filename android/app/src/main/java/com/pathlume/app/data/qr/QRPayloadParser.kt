@@ -1,10 +1,10 @@
 package com.pathlume.app.data.qr
 
-import android.net.Uri
 import com.pathlume.app.domain.model.QRPayload
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.net.URI
 
 object QRPayloadParser {
     private val json = Json { ignoreUnknownKeys = true }
@@ -19,7 +19,7 @@ object QRPayloadParser {
      * 5. Plain Site ID String: demo_site
      */
     fun parse(rawInput: String?): QRPayload? {
-        if (rawInput.isNull_or_blank()) return null
+        if (rawInput.isNullOrBlank()) return null
         val trimmed = rawInput.trim()
 
         // 1. Try parsing JSON
@@ -29,56 +29,61 @@ object QRPayloadParser {
                 val siteId = jsonObject["siteId"]?.jsonPrimitive?.content
                     ?: jsonObject["mapId"]?.jsonPrimitive?.content
                 val anchorId = jsonObject["anchorId"]?.jsonPrimitive?.content
-                if (!siteId.isNull_or_blank()) {
+                if (!siteId.isNullOrEmpty()) {
                     return QRPayload(siteId = siteId, anchorId = anchorId)
                 }
             } catch (e: Exception) {
-                // Ignore JSON parse errors and fall through to URI parser
+                // Ignore JSON parse errors and fall through
             }
         }
 
-        // 2. Try parsing URI / URL
+        // 2. Try parsing URI using java.net.URI (JVM & Android compatible)
         try {
-            val uri = Uri.parse(trimmed)
+            if (trimmed.contains("://")) {
+                val uri = URI.create(trimmed)
+                val scheme = uri.scheme?.lowercase()
+                val host = uri.host?.lowercase()
+                val rawPath = uri.path ?: ""
+                val segments = rawPath.split("/").filter { it.isNotEmpty() }
 
-            // 2a. https://pathlume.app/s/{siteId}
-            if ((uri.scheme == "https" || uri.scheme == "http") &&
-                (uri.host == "pathlume.app" || uri.host == "www.pathlume.app" || uri.host == "localhost" || uri.host == "10.0.2.2")
-            ) {
-                val segments = uri.pathSegments
-                if (segments.size >= 2 && segments[0] == "s") {
-                    return QRPayload(siteId = segments[1])
+                // 2a. HTTP / HTTPS URLs: http(s)://domain/s/{siteId} or http(s)://domain/site/{siteId}
+                if (scheme == "https" || scheme == "http") {
+                    if (segments.size >= 2 && (segments[0] == "s" || segments[0] == "site")) {
+                        return QRPayload(siteId = sanitizeId(segments[1]))
+                    } else if (segments.isNotEmpty()) {
+                        return QRPayload(siteId = sanitizeId(segments.last()))
+                    }
                 }
-            }
 
-            // 2b. pathlume://site/{siteId}
-            if (uri.scheme == "pathlume" && uri.host == "site") {
-                val siteId = uri.lastPathSegment
-                if (!siteId.isNull_or_blank()) {
-                    return QRPayload(siteId = siteId)
+                // 2b. pathlume://site/{siteId}
+                if (scheme == "pathlume" && host == "site") {
+                    if (segments.isNotEmpty()) {
+                        return QRPayload(siteId = sanitizeId(segments[0]))
+                    }
                 }
-            }
 
-            // 2c. Legacy format: navcat://map/{siteId}/{anchorId}
-            if (uri.scheme == "navcat" && uri.host == "map") {
-                val segments = uri.pathSegments
-                if (segments.isNotEmpty()) {
-                    val siteId = segments[0]
-                    val anchorId = if (segments.size > 1) segments[1] else null
-                    return QRPayload(siteId = siteId, anchorId = anchorId)
+                // 2c. Legacy format: navcat://map/{siteId}/{anchorId}
+                if (scheme == "navcat" && host == "map") {
+                    if (segments.isNotEmpty()) {
+                        val siteId = sanitizeId(segments[0])
+                        val anchorId = if (segments.size > 1) segments[1] else null
+                        return QRPayload(siteId = siteId, anchorId = anchorId)
+                    }
                 }
             }
         } catch (e: Exception) {
-            // Ignore URI parse exceptions
+            // Fall through to plain string check
         }
 
-        // 3. Fallback: treat raw string as direct siteId if non-empty
-        if (!trimmed.contains(" ") && trimmed.length < 64) {
-            return QRPayload(siteId = trimmed)
+        // 3. Fallback: treat raw string as direct siteId if valid alphanumeric/slug
+        if (!trimmed.contains(" ") && trimmed.length < 128) {
+            return QRPayload(siteId = sanitizeId(trimmed))
         }
 
         return null
     }
 
-    private fun String?.isNull_or_blank(): Boolean = this == null || this.trim().isEmpty()
+    private fun sanitizeId(input: String): String {
+        return input.replace('/', '_').trim()
+    }
 }

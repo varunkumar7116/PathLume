@@ -1,0 +1,50 @@
+{
+  "siteId": "sample1",
+  "name": "Sample 1 Site",
+  "status": "active",
+  "buildings": [
+    {
+      "buildingId": "b1",
+      "name": "B1",
+      "floors": [
+        {
+          "floorId": "f1",
+          "name": "F1",
+          "floorNumber": 1,
+          "modelUrl": "/sample1.glb"
+        }
+      ]
+    }
+  ],
+  "destinations": [
+    {
+      "id": "d1",
+      "name": "Dest 1",
+      "type": "Room",
+      "buildingId": "b1",
+      "floorId": "f1",
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "navigationNodeId": "n1"
+    }
+  ],
+  "navigationGraph": {
+    "nodes": [
+      {
+        "id": "n1",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "neighbors": []
+      }
+    ],
+    "edges": []
+  },
+  "version": 2,
+  "publishedAt": 1787220373754
+}

@@ -61,7 +61,7 @@ camera.position.set(0, 100, -50);
 camera.zoom = 0.1;
 orbitControls.target.set(0, 0, -50);
 
-const levelModel = await loadGLTF('./models/dungeon.gltf');
+const levelModel = await loadGLTF('./models/sample.glb');
 scene.add(levelModel.scene);
 
 levelModel.scene.visible = false;

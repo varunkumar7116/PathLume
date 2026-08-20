@@ -47,6 +47,22 @@ describe('PathLume REST API Server', () => {
         expect(models[0].modelUrl).toBeDefined();
     });
 
+    it('GET /api/sites returns all site configurations', async () => {
+        const response = await fetch(`${baseUrl}/api/sites`);
+        expect(response.status).toBe(200);
+        const sites = await response.json();
+        expect(Array.isArray(sites)).toBe(true);
+        expect(sites.length).toBeGreaterThan(0);
+    });
+
+    it('POST /api/admin/sites/demo_site/publish validates and increments site version', async () => {
+        const response = await fetch(`${baseUrl}/api/admin/sites/demo_site/publish`, { method: 'POST' });
+        expect(response.status).toBe(200);
+        const data = await response.json();
+        expect(data.site.status).toBe('active');
+        expect(data.site.version).toBeGreaterThan(1);
+    });
+
     it('GET /api/sites/non_existent returns 404 error', async () => {
         const response = await fetch(`${baseUrl}/api/sites/non_existent`);
         expect(response.status).toBe(404);

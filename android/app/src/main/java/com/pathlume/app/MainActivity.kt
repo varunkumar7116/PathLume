@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity() {
     private var initialDeepLinkSiteId by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate()
+        super.onCreate(savedInstanceState)
 
         // Handle initial deep link intent if app opened via URL / URI scheme
         handleDeepLinkIntent(intent)

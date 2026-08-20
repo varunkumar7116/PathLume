@@ -2,3 +2,5 @@ node_modules
 dist
 dist-typedoc
 llm
+.firebase
+android/app/build

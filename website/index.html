@@ -3,41 +3,388 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PathLume - 3D Indoor AR Navigation & Pathfinding</title>
-    <meta name="description" content="A 3D navigation mesh pathfinding library for JavaScript and TypeScript." />
+    <title>PathLume Web Hub — Admin & 3D Indoor Editor</title>
+    <meta name="description" content="PathLume Administrative Hub, 3D GLB Model Management, Navigation Graph Authoring, and VPS Site Publishing." />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧭</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./src/index.css" />
   </head>
   <body>
-    <div id="root">
-      <div id="loading" class="loading-container">
-        <div class="spinner"></div>
+
+    <!-- 1. DEDICATED ADMIN LOGIN SCREEN (Shown when not authenticated) -->
+    <div id="login-view" class="login-container">
+      <div class="login-card">
+        <div class="login-header">
+          <div class="login-logo">🧭</div>
+          <h1 class="login-title">PathLume Admin Portal</h1>
+          <p class="login-subtitle">Indoor AR Navigation Platform — Admin Access</p>
+        </div>
+        
+        <form id="form-admin-login" onsubmit="return false;" class="login-form">
+          <div class="form-group">
+            <label for="auth-email">Admin Email Address</label>
+            <input type="email" id="auth-email" value="admin@pathlume.app" placeholder="admin@pathlume.app" required />
+          </div>
+          
+          <div class="form-group">
+            <label for="auth-password">Password</label>
+            <input type="password" id="auth-password" value="PathLumeAdmin2026!" placeholder="Password" required />
+          </div>
+
+          <div id="auth-error-msg" class="auth-error"></div>
+
+          <button type="submit" id="btn-auth-submit" class="btn btn-primary full-width font-large">
+            <span>Sign In to Admin Hub</span> ➔
+          </button>
+        </form>
+
+        <div class="login-footer">
+          <span>🔒 Authorized Administrative Access Only</span>
+        </div>
       </div>
     </div>
 
-    <nav class="nav">
-      <div class="nav-info">
-        <h1 class="nav-title">PathLume</h1>
-        <p class="nav-subtitle">javascript 3d floor based pathfinding</p>
-      </div>
-      <div class="nav-links">
-        <a href="/examples">examples</a>
-        <a href="/docs">docs</a>
-        <a href="https://github.com/isaac-mason/navcat" target="_blank" rel="noopener noreferrer">github</a>
-        <a href="https://www.npmjs.com/package/navcat">npm</a>
-      </div>
-    </nav>
+    <!-- 2. MAIN ADMIN HUB SCREEN (Shown when authenticated) -->
+    <div id="hub-view" class="hub-container hidden">
+      
+      <!-- Top Navigation Header -->
+      <header class="admin-header">
+        <div class="header-brand">
+          <div class="brand-icon">🧭</div>
+          <div class="brand-text">
+            <h1 class="brand-title">PathLume Web Hub</h1>
+            <span class="brand-subtitle">Indoor AR Navigation Platform</span>
+          </div>
+        </div>
 
-    <footer class="footer">
-      <button id="navmesh-toggle" class="navmesh-toggle">Show NavMesh [H]</button>
-      <div class="footer-links">
-        <a href="https://x.com/isaac_mason_" class="footer-link" target="_blank" rel="noopener noreferrer">x.com/isaac_mason_</a>
-        <a href="https://github.com/sponsors/isaac-mason" class="footer-link" target="_blank" rel="noopener noreferrer">sponsor me!</a>
+        <div class="header-center">
+          <label for="site-select" class="sr-only">Active Site</label>
+          <select id="site-select" class="site-dropdown" title="Select Active Site">
+            <option value="sample1">sample1 (Photogrammetry 3D Scan)</option>
+            <option value="demo_site">demo_site (Demo Universal Campus)</option>
+          </select>
+          <button id="btn-create-new-site" class="btn btn-secondary btn-sm">+ New Site</button>
+          <span id="site-status-badge" class="badge badge-active">ACTIVE v1.0</span>
+        </div>
+
+        <div class="header-actions">
+          <button id="btn-admin-logout" class="btn btn-secondary btn-sm">Sign Out</button>
+          <button id="btn-validate-site" class="btn btn-secondary">Validate Site</button>
+          <button id="btn-publish-site" class="btn btn-publish">Publish & Version</button>
+          <button id="btn-generate-qr" class="btn btn-accent">Primary QR</button>
+        </div>
+      </header>
+
+      <!-- Main Application Grid Container -->
+      <div class="admin-container">
+        
+        <!-- Left Control Sidebar -->
+        <aside class="admin-sidebar">
+          
+          <!-- Sidebar Tabs -->
+          <div class="sidebar-tabs">
+            <button class="tab-btn active" data-tab="panel-site">Site Config</button>
+            <button class="tab-btn" data-tab="panel-models">3D Models</button>
+            <button class="tab-btn" data-tab="panel-graph">Nav Graph</button>
+            <button class="tab-btn" data-tab="panel-destinations">Destinations</button>
+            <button class="tab-btn" data-tab="panel-vps">VPS & Align</button>
+          </div>
+
+          <!-- Panel 1: Site General Settings -->
+          <div class="tab-panel active" id="panel-site">
+            <div class="panel-section">
+              <h3 class="section-title">Site General Settings</h3>
+              
+              <div class="form-group">
+                <label for="input-site-id">Site ID (Immutable)</label>
+                <input type="text" id="input-site-id" value="sample1" readonly />
+              </div>
+
+              <div class="form-group">
+                <label for="input-site-name">Site Name</label>
+                <input type="text" id="input-site-name" value="Photogrammetry Scan (sample1)" />
+              </div>
+
+              <div class="form-group">
+                <label for="input-site-type">Environment Category</label>
+                <select id="input-site-type">
+                  <option value="photogrammetry" selected>Photogrammetry 3D Scan</option>
+                  <option value="campus">University / Campus</option>
+                  <option value="hospital">Hospital / Healthcare</option>
+                  <option value="mall">Shopping Mall / Retail</option>
+                  <option value="airport">Airport / Transit Hub</option>
+                  <option value="office">Office / Commercial</option>
+                  <option value="warehouse">Warehouse / Industrial</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="input-site-desc">Description</label>
+                <textarea id="input-site-desc" rows="3">Real 3D GLB model scan with VPS camera pose tracking and indoor pathfinding.</textarea>
+              </div>
+
+              <button id="btn-save-site-info" class="btn btn-secondary full-width">Save Site Meta</button>
+            </div>
+          </div>
+
+          <!-- Panel 2: 3D Models -->
+          <div class="tab-panel" id="panel-models">
+            <div class="panel-section">
+              <h3 class="section-title">Upload Real 3D GLB Asset</h3>
+              <p class="section-desc">Upload photogrammetry or CAD building model (.glb / .gltf)</p>
+
+              <div class="file-upload-box">
+                <input type="file" id="input-glb-file" accept=".glb,.gltf" class="file-input" />
+                <div class="upload-icon">📦</div>
+                <div class="upload-text">Drag & drop GLB file here, or <span class="highlight">browse</span></div>
+              </div>
+
+              <div id="upload-status" class="status-msg">Current Asset: <code>sample1.glb</code> (1.78 MB)</div>
+            </div>
+
+            <div class="panel-section">
+              <h3 class="section-title">Model Transform & Scale</h3>
+              
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="input-scale">Scale Multiplier</label>
+                  <input type="number" id="input-scale" value="1.0" step="0.1" />
+                </div>
+                <div class="form-group">
+                  <label for="input-rot-y">Y-Rotation (deg)</label>
+                  <input type="number" id="input-rot-y" value="0.0" step="1.0" />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="input-offset-x">Offset X (m)</label>
+                  <input type="number" id="input-offset-x" value="0.0" step="0.1" />
+                </div>
+                <div class="form-group">
+                  <label for="input-offset-z">Offset Z (m)</label>
+                  <input type="number" id="input-offset-z" value="0.0" step="0.1" />
+                </div>
+              </div>
+
+              <button id="btn-apply-transform" class="btn btn-secondary full-width">Apply Model Transform</button>
+            </div>
+          </div>
+
+          <!-- Panel 3: Nav Graph Authoring -->
+          <div class="tab-panel" id="panel-graph">
+            <div class="panel-section">
+              <h3 class="section-title">Navigation Graph Tools</h3>
+              <p class="section-desc">Select tool or click 3D view to place nodes</p>
+              
+              <div class="tool-grid">
+                <button id="tool-btn-pan" class="btn btn-tool active" title="Free Camera Orbit / Pan">✋ Pan/Orbit</button>
+                <button id="tool-btn-move" class="btn btn-tool" title="Drag to Move Node in 3D">🎯 Move Node</button>
+                <button id="tool-btn-add" class="btn btn-tool" title="Add Walkable Node">➕ Add Node</button>
+                <button id="tool-btn-connect" class="btn btn-tool" title="Connect Route Line">🔗 Connect Route</button>
+                <button id="tool-btn-start" class="btn btn-tool" title="Set Main Entrance">🚪 Set Entrance</button>
+                <button id="tool-btn-delete" class="btn btn-tool btn-tool-danger" title="Delete Selected Node">🗑️ Delete</button>
+              </div>
+
+              <div class="form-group margin-top-10">
+                <label for="select-edge-type">Transition Type</label>
+                <select id="select-edge-type">
+                  <option value="walk" selected>Walkable Corridor</option>
+                  <option value="stairs">Staircase Transition</option>
+                  <option value="elevator">Elevator Shaft</option>
+                  <option value="ramp">Accessibility Ramp</option>
+                  <option value="escalator">Escalator</option>
+                </select>
+              </div>
+
+              <div class="graph-summary">
+                <div>Total Nodes: <strong id="stat-node-count">0</strong></div>
+                <div>Total Edges: <strong id="stat-edge-count">0</strong></div>
+              </div>
+
+              <button id="btn-auto-chain" class="btn btn-primary full-width" style="margin-bottom: 8px;">⚡ Auto-Chain All Nodes</button>
+              <button id="btn-clear-graph" class="btn btn-danger-outline full-width">Clear Graph</button>
+            </div>
+          </div>
+
+          <!-- Panel 4: Destinations -->
+          <div class="tab-panel" id="panel-destinations">
+            <div class="panel-section">
+              <h3 class="section-title">Add Named Location</h3>
+              
+              <div class="form-group">
+                <label for="input-dest-name">Location / Room Name</label>
+                <input type="text" id="input-dest-name" placeholder="e.g. Reception Desk" />
+              </div>
+
+              <div class="form-group">
+                <label for="select-dest-category">Category</label>
+                <select id="select-dest-category">
+                  <option value="Reception">Reception & Info</option>
+                  <option value="Office">Office & Meeting</option>
+                  <option value="Academic">Library & Academic</option>
+                  <option value="Dining">Cafeteria & Dining</option>
+                  <option value="Service">Restroom & Service</option>
+                </select>
+              </div>
+
+              <button id="btn-add-destination" class="btn btn-primary full-width">Add Location at Selected Node</button>
+            </div>
+
+            <div class="panel-section">
+              <h3 class="section-title">Active Building Locations</h3>
+              <ul id="destinations-list" class="item-list">
+                <!-- Dynamically populated -->
+              </ul>
+            </div>
+          </div>
+
+          <!-- Panel 5: VPS & Calibration -->
+          <div class="tab-panel" id="panel-vps">
+            <div class="panel-section">
+              <h3 class="section-title">VPS Configuration</h3>
+
+              <div class="form-group">
+                <label for="input-vps-url">VPS Server URL</label>
+                <input type="text" id="input-vps-url" value="https://pathlume.app/api/vps" />
+              </div>
+
+              <div class="form-group">
+                <label for="input-vps-mapid">VPS Map ID</label>
+                <input type="text" id="input-vps-mapid" value="vps_sample1_mesh" />
+              </div>
+
+              <div class="form-group">
+                <label for="input-vps-rate">Frame Sampling Rate (Hz)</label>
+                <input type="number" id="input-vps-rate" value="5" min="1" max="30" />
+              </div>
+
+              <button id="btn-save-vps" class="btn btn-secondary full-width">Save VPS Config</button>
+            </div>
+          </div>
+
+        </aside>
+
+        <!-- Center 3D Viewport Canvas Container -->
+        <main class="admin-viewport">
+          <div id="canvas-3d-root" class="canvas-3d-root"></div>
+          
+          <!-- Viewport Floating Overlay Controls -->
+          <div class="viewport-overlay top-left">
+            <div class="overlay-card">
+              <span class="overlay-label">Tool Mode:</span>
+              <span id="viewport-mode-label" class="overlay-value">✋ Pan / Orbit Inspection</span>
+            </div>
+          </div>
+
+          <div class="viewport-overlay top-right">
+            <button id="btn-toggle-grid" class="btn btn-icon" title="Toggle Grid">🌐 Grid</button>
+            <button id="btn-toggle-wireframe" class="btn btn-icon" title="Toggle Wireframe">📐 Mesh</button>
+            <button id="btn-reset-view" class="btn btn-icon" title="Reset View">🎯 Reset View</button>
+          </div>
+
+          <!-- Selected Node Inspector Card -->
+          <div class="viewport-overlay bottom-left">
+            <div class="overlay-card" id="inspector-card">
+              <div class="card-title">Node Inspector</div>
+              <div class="card-content" id="inspector-content">Click a node to inspect or drag to move</div>
+              <div id="inspector-actions" style="margin-top:8px; display:none;">
+                <button id="btn-delete-selected-node" class="btn btn-danger-outline full-width">Delete Selected Node</button>
+              </div>
+            </div>
+          </div>
+        </main>
+
       </div>
-    </footer>
+    </div>
+
+    <!-- 3. PUBLISH SUCCESS DIALOG MODAL -->
+    <div id="publish-dialog-modal" class="modal-backdrop hidden">
+      <div class="modal-card modal-card-large">
+        <div class="modal-header">
+          <div class="success-title-box">
+            <div class="success-icon">🎉</div>
+            <h2>Site Published Successfully!</h2>
+          </div>
+          <button id="pub-modal-close" class="modal-close">&times;</button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="publish-success-banner">
+            <div class="banner-badge">VERSION <span id="pub-version-tag">v2.0</span> PUBLISHED</div>
+            <p>Your 3D GLB building model, navigation routes, and building locations have been processed and saved to Firebase Backend!</p>
+          </div>
+
+          <div class="publish-details-grid">
+            <div class="detail-box">
+              <span class="detail-label">Site ID</span>
+              <strong id="pub-site-id" class="detail-value">sample1</strong>
+            </div>
+            <div class="detail-box">
+              <span class="detail-label">Site Name</span>
+              <strong id="pub-site-name" class="detail-value">Photogrammetry Scan</strong>
+            </div>
+            <div class="detail-box">
+              <span class="detail-label">Backend Sync</span>
+              <strong class="detail-value status-online">⚡ CONNECTED TO FIRESTORE</strong>
+            </div>
+          </div>
+
+          <div class="qr-preview-container">
+            <h3>Primary Site Entrance QR Code</h3>
+            <p class="qr-subtext">Mobile users can scan this QR code with the Android App to instantly load this site.</p>
+            <div class="qr-canvas-box">
+              <canvas id="pub-qr-canvas"></canvas>
+            </div>
+            <div id="pub-qr-url" class="qr-url-text">https://pathlume.app/s/sample1</div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button id="btn-pub-download-qr" class="btn btn-primary btn-lg">Download QR Code PNG</button>
+          <button id="btn-pub-dismiss" class="btn btn-secondary btn-lg">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. SITE VALIDATION MODAL DIALOG -->
+    <div id="validation-modal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>Site Publishing Validation</h2>
+          <button id="val-modal-close" class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div id="validation-results" style="text-align:left; font-size:13px; line-height:1.6;"></div>
+        </div>
+        <div class="modal-footer">
+          <button id="val-modal-ok" class="btn btn-primary full-width">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. QR CODE MODAL DIALOG -->
+    <div id="qr-modal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>PathLume Primary Site QR</h2>
+          <button id="modal-close" class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="qr-preview-box">
+            <canvas id="qr-canvas"></canvas>
+          </div>
+          <div class="qr-url-text" id="qr-modal-url">https://pathlume.app/s/sample1</div>
+          <p class="qr-desc">Print and place this QR code at the physical building entrance.</p>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-qr-download-png" class="btn btn-primary">Download PNG</button>
+          <button id="btn-qr-print" class="btn btn-secondary">Print QR</button>
+        </div>
+      </div>
+    </div>
 
     <script type="module" src="./src/index.ts"></script>
   </body>

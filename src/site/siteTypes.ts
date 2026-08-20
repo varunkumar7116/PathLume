@@ -41,6 +41,14 @@ export interface SiteCoordinateSystem {
     transformConfig: VPSTransformConfig;
 }
 
+export interface SiteCalibration {
+    translation: Vector3D;
+    rotation: Vector3D;
+    scale: number;
+    axisConvention: 'Y_UP_RIGHT_HANDED';
+    floorElevationMeters: Record<string, number>;
+}
+
 export interface SiteConfig {
     siteId: string;
     name: string;
@@ -48,6 +56,7 @@ export interface SiteConfig {
     description?: string;
     status: 'active' | 'draft' | 'archived';
     version: number;
+    publishedAt?: number;
     qrUrl: string; // Canonical URL: https://pathlume.app/s/{siteId}
     buildings: SiteBuilding[];
     destinations: SiteDestination[];
@@ -57,4 +66,5 @@ export interface SiteConfig {
     };
     vps: SiteVPSConfig;
     coordinateSystem: SiteCoordinateSystem;
+    calibration?: SiteCalibration;
 }

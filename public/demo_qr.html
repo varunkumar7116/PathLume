@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PathLume 3D Model QR Code Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #0F172A;
+            color: #F8FAFC;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .card {
+            background: #1E293B;
+            border: 1px solid #334155;
+            border-radius: 24px;
+            padding: 36px;
+            max-width: 540px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        }
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            background: #0F172A;
+            padding: 6px;
+            border-radius: 14px;
+            border: 1px solid #334155;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 12px 8px;
+            border: none;
+            background: transparent;
+            color: #94A3B8;
+            font-weight: 600;
+            font-size: 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .tab-btn.active {
+            background: #38BDF8;
+            color: #0F172A;
+            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+        }
+        .badge {
+            display: inline-block;
+            background: rgba(34, 197, 94, 0.15);
+            color: #22C55E;
+            font-weight: 600;
+            font-size: 13px;
+            padding: 6px 16px;
+            border-radius: 20px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; color: #F8FAFC; }
+        p.subtitle { color: #94A3B8; font-size: 14px; margin-bottom: 20px; }
+        
+        .qr-card-wrapper {
+            background: #FFFFFF;
+            padding: 24px;
+            border-radius: 20px;
+            display: inline-block;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+            margin-bottom: 20px;
+        }
+        .qr-container {
+            width: 280px;
+            height: 280px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #FFFFFF;
+        }
+        .qr-container img, .qr-container canvas, .qr-container svg {
+            width: 280px !important;
+            height: 280px !important;
+            display: block !important;
+        }
+        
+        .payload-selector {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            justify-content: center;
+        }
+        .payload-btn {
+            background: #0F172A;
+            border: 1px solid #334155;
+            color: #94A3B8;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .payload-btn.active {
+            background: rgba(56, 189, 248, 0.2);
+            color: #38BDF8;
+            border-color: #38BDF8;
+        }
+
+        .url-box {
+            background: #0F172A;
+            border: 1px solid #334155;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 13px;
+            color: #38BDF8;
+            word-break: break-all;
+            margin-bottom: 20px;
+        }
+
+        .custom-input-box {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .custom-input-box input {
+            flex: 1;
+            background: #0F172A;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: #F8FAFC;
+            font-size: 14px;
+        }
+        .custom-input-box button {
+            background: #38BDF8;
+            color: #0F172A;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .instructions {
+            text-align: left;
+            background: rgba(15, 23, 42, 0.6);
+            border-top: 1px solid #334155;
+            padding-top: 18px;
+            margin-top: 10px;
+            border-radius: 12px;
+            padding: 16px;
+        }
+        .instructions h3 { font-size: 14px; color: #F8FAFC; margin-bottom: 8px; }
+        .instructions ol { padding-left: 20px; color: #94A3B8; font-size: 13px; line-height: 1.6; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="tabs">
+            <button class="tab-btn active" id="tabSample1" onclick="switchSite('sample1', 'sample1.glb 3D Scan Map', 'sample1_qr.svg', 'https://pathlume.app/s/sample1', this)">sample1.glb Scan</button>
+            <button class="tab-btn" id="tabDemoSite" onclick="switchSite('demo_site', 'Demo Universal Campus', 'demo_site_qr.svg', 'https://pathlume.app/s/demo_site', this)">Demo Site</button>
+        </div>
+
+        <div class="badge" id="badgeLabel">sample1.glb • Photogrammetry 3D Scan</div>
+        <h1 id="titleLabel">sample1.glb 3D Scan Map</h1>
+        <p class="subtitle">Scan this high-contrast QR code with the PathLume Android App</p>
+
+        <div class="payload-selector">
+            <button class="payload-btn active" onclick="setPayloadType('url')">URL Format</button>
+            <button class="payload-btn" onclick="setPayloadType('scheme')">Deep Link</button>
+            <button class="payload-btn" onclick="setPayloadType('json')">JSON</button>
+            <button class="payload-btn" onclick="setPayloadType('raw')">Plain ID</button>
+        </div>
+
+        <div class="qr-card-wrapper">
+            <div class="qr-container" id="qrContainer">
+                <img id="qrImg" src="sample1_qr.svg" alt="PathLume QR Code">
+            </div>
+        </div>
+
+        <div class="url-box" id="urlBox">
+            https://pathlume.app/s/sample1
+        </div>
+
+        <div class="custom-input-box">
+            <input type="text" id="customInput" placeholder="Enter custom siteId or URL..." value="sample1">
+            <button onclick="generateCustomQR()">Generate</button>
+        </div>
+
+        <div class="instructions">
+            <h3>📱 How to scan on mobile:</h3>
+            <ol>
+                <li>Launch the <strong>PathLume</strong> Android App.</li>
+                <li>Tap <strong>Scan Site QR</strong> on the main screen.</li>
+                <li>Point camera at the QR code above (ensure screen brightness is high).</li>
+                <li>The app will automatically parse the site ID, download the 3D model, perform VPS pose tracking, and show 3D AR navigation arrows!</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        let currentSiteId = 'sample1';
+        let currentPayloadType = 'url';
+
+        function getPayloadString(siteId, type) {
+            switch(type) {
+                case 'url': return `https://pathlume.app/s/${siteId}`;
+                case 'scheme': return `pathlume://site/${siteId}`;
+                case 'json': return `{"siteId":"${siteId}"}`;
+                case 'raw': return siteId;
+                default: return `https://pathlume.app/s/${siteId}`;
+            }
+        }
+
+        function renderQR(text, defaultSvgFile) {
+            const container = document.getElementById('qrContainer');
+            container.innerHTML = '';
+
+            // If QRCode JS library loaded, generate dynamically on canvas/DOM
+            if (typeof QRCode !== 'undefined') {
+                try {
+                    new QRCode(container, {
+                        text: text,
+                        width: 280,
+                        height: 280,
+                        colorDark: "#000000",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.H
+                    });
+                    return;
+                } catch (e) {
+                    console.warn('QRCode JS render error, falling back to static SVG / API:', e);
+                }
+            }
+
+            // Fallback: use static SVG or api.qrserver.com
+            const img = document.createElement('img');
+            if (defaultSvgFile && currentPayloadType === 'url') {
+                img.src = defaultSvgFile;
+            } else {
+                img.src = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(text)}`;
+            }
+            img.alt = "PathLume QR Code";
+            img.style.width = "280px";
+            img.style.height = "280px";
+            container.appendChild(img);
+        }
+
+        function updateDisplay(svgFile) {
+            const text = getPayloadString(currentSiteId, currentPayloadType);
+            document.getElementById('urlBox').innerText = text;
+            document.getElementById('customInput').value = currentSiteId;
+            renderQR(text, svgFile);
+        }
+
+        function switchSite(siteId, title, svgFile, url, btn) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentSiteId = siteId;
+            document.getElementById('titleLabel').innerText = title;
+            document.getElementById('badgeLabel').innerText = siteId === 'sample1' ? 'sample1.glb • Photogrammetry 3D Scan' : 'Universal Campus Demo';
+            updateDisplay(svgFile);
+        }
+
+        function setPayloadType(type) {
+            currentPayloadType = type;
+            document.querySelectorAll('.payload-btn').forEach(b => b.classList.remove('active'));
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
+            const svgFile = currentSiteId === 'sample1' ? 'sample1_qr.svg' : 'demo_site_qr.svg';
+            updateDisplay(svgFile);
+        }
+
+        function generateCustomQR() {
+            const val = document.getElementById('customInput').value.trim();
+            if (!val) return;
+            currentSiteId = val;
+            document.getElementById('titleLabel').innerText = `Custom Site: ${val}`;
+            document.getElementById('badgeLabel').innerText = `Custom QR Payload`;
+            updateDisplay(null);
+        }
+
+        // Initial render
+        window.addEventListener('DOMContentLoaded', () => {
+            updateDisplay('sample1_qr.svg');
+        });
+    </script>
+</body>
+</html>

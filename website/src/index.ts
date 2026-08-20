@@ -1,1279 +1,973 @@
-import { createMulberry32Generator, type Vec3, vec3 } from 'mathcat';
-import {
-    addOffMeshConnection,
-    createFindNearestPolyResult,
-    DEFAULT_QUERY_FILTER,
-    findNearestPoly,
-    findRandomPoint,
-    findRandomPointAroundCircle,
-    getNodeByRef,
-    OffMeshConnectionDirection,
-    type OffMeshConnectionParams,
-} from 'pathlume';
-import { crowd, floodFillNavMesh, generateSoloNavMesh, type SoloNavMeshInput, type SoloNavMeshOptions } from 'pathlume/blocks';
-import { createNavMeshHelper, createNavMeshOffMeshConnectionsHelper, getPositionsAndIndices } from 'pathlume/three';
 import * as THREE from 'three';
-import { Line2, LineGeometry, LineMaterial } from 'three/examples/jsm/Addons.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import QRCode from 'qrcode';
 import { loadGLTF } from './load-gltf';
+import { 
+  loginAdmin, 
+  logoutAdmin, 
+  subscribeAuthState, 
+  getSiteFromFirestore, 
+  saveSiteMetadataToFirestore, 
+  saveGraphToFirestore, 
+  saveDestinationsToFirestore, 
+  uploadGLBToStorage, 
+  publishSiteInFirestore,
+  SiteNodeData,
+  SiteEdgeData,
+  SiteDestinationData,
+  SiteMetadata
+} from './firebase';
 
-const random = createMulberry32Generator(42);
+class PathLumeAdminApp {
+  private currentSiteId = 'sample1';
+  private currentSiteMetadata: SiteMetadata = {
+    siteId: 'sample1',
+    name: 'Photogrammetry Scan (sample1)',
+    type: 'photogrammetry',
+    description: 'Real 3D GLB model scan with indoor AR navigation.',
+    published: true,
+    version: 1,
+    calibration: { scale: 1.0, rotationY: 0.0, offsetX: 0.0, offsetZ: 0.0 }
+  };
 
-/* setup example scene */
-const container = document.getElementById('root')!;
+  private container: HTMLElement;
+  private scene: THREE.Scene;
+  private camera: THREE.PerspectiveCamera;
+  private renderer: THREE.WebGLRenderer;
+  private controls: OrbitControls;
+  private gridHelper: THREE.GridHelper;
+  private modelGroup: THREE.Group;
+  private graphGroup: THREE.Group;
 
-// scene
-const scene = new THREE.Scene();
-scene.background = new THREE.Color('#222222');
+  private nodes: SiteNodeData[] = [];
+  private edges: SiteEdgeData[] = [];
+  private destinations: SiteDestinationData[] = [];
+  private startNodeId: string | null = null;
+  private selectedNodeId: string | null = null;
 
-// camera
-const camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
-camera.position.set(-5, 4, 10);
-camera.lookAt(-2, 0, 0);
+  // Editor Tools: 'pan' | 'move' | 'add' | 'connect' | 'start'
+  private editorMode: 'pan' | 'move' | 'add' | 'connect' | 'start' = 'pan';
+  private edgeType = 'walk';
+  private connectSourceNodeId: string | null = null;
 
-// renderer
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // Node Dragging State
+  private isDraggingNode = false;
+  private draggedNodeId: string | null = null;
+  private dragPlane = new THREE.Plane();
+  private dragPlaneIntersection = new THREE.Vector3();
 
-renderer.setSize(container.clientWidth, container.clientHeight);
-renderer.setPixelRatio(window.devicePixelRatio);
+  constructor() {
+    this.container = document.getElementById('canvas-3d-root')!;
+    
+    // 1. Setup Three.js Scene
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color('#050B14');
 
-container.appendChild(renderer.domElement);
+    // 2. Camera
+    this.camera = new THREE.PerspectiveCamera(60, this.container.clientWidth / this.container.clientHeight, 0.1, 1000);
+    this.camera.position.set(0, 15, 25);
 
-// lighting
-const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
-scene.add(ambientLight);
+    // 3. Renderer
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+    this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.shadowMap.enabled = true;
+    this.container.appendChild(this.renderer.domElement);
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-directionalLight.position.set(-5, 10, 2);
-directionalLight.castShadow = true;
-directionalLight.shadow.mapSize.width = 2048;
-directionalLight.shadow.mapSize.height = 2048;
-directionalLight.shadow.camera.near = 0.5;
-directionalLight.shadow.camera.far = 30;
-directionalLight.shadow.camera.left = -30;
-directionalLight.shadow.camera.right = 30;
-directionalLight.shadow.camera.top = 10;
-directionalLight.shadow.camera.bottom = -10;
-directionalLight.shadow.bias = -0.001;
-scene.add(directionalLight);
+    // 4. Orbit Controls
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.enableDamping = true;
 
-// resize handling
-function onWindowResize() {
-    camera.aspect = container.clientWidth / container.clientHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(container.clientWidth, container.clientHeight);
-}
-window.addEventListener('resize', onWindowResize);
+    // 5. Lighting
+    const ambient = new THREE.AmbientLight(0xffffff, 2.2);
+    this.scene.add(ambient);
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 1.5);
+    dirLight1.position.set(20, 40, 20);
+    this.scene.add(dirLight1);
+    const dirLight2 = new THREE.DirectionalLight(0x38bdf8, 0.8);
+    dirLight2.position.set(-20, -10, -20);
+    this.scene.add(dirLight2);
 
-/* load models in parallel */
-const [levelModel, catModel, laserPointerModel] = await Promise.all([
-    loadGLTF('/office.glb'),
-    loadGLTF('/car.glb'),
-    loadGLTF('/laserpointer.glb'),
-]);
+    // 6. Helpers & Groups
+    this.gridHelper = new THREE.GridHelper(60, 60, 0x38bdf8, 0x334155);
+    this.scene.add(this.gridHelper);
 
-/* setup level */
-const tapeMeshes: THREE.Mesh[] = [];
+    this.modelGroup = new THREE.Group();
+    this.scene.add(this.modelGroup);
 
-levelModel.scene.traverse((child) => {
-    if (child instanceof THREE.Mesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
+    this.graphGroup = new THREE.Group();
+    this.scene.add(this.graphGroup);
 
-        if (child.userData.tape) {
-            tapeMeshes.push(child);
+    // 7. Event Listeners
+    window.addEventListener('resize', () => this.onWindowResize());
+    
+    // Pointer / Mouse events for 3D interactions
+    this.renderer.domElement.addEventListener('pointerdown', (e) => this.onPointerDown(e));
+    this.renderer.domElement.addEventListener('pointermove', (e) => this.onPointerMove(e));
+    this.renderer.domElement.addEventListener('pointerup', () => this.onPointerUp());
+    this.renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Keyboard shortcut (Delete / Backspace)
+    window.addEventListener('keydown', (e) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedNodeId) {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+          e.preventDefault();
+          this.deleteNode(this.selectedNodeId);
         }
-    }
-});
-
-scene.add(levelModel.scene);
-
-const catAnimations = catModel.animations;
-
-/* hide loading spinner */
-const loadingElement = document.getElementById('loading');
-if (loadingElement) {
-    loadingElement.classList.add('hidden');
-    setTimeout(() => {
-        loadingElement.style.display = 'none';
-    }, 500); // Wait for fade transition to complete
-}
-
-const cloneCatModel = (): THREE.Group => {
-    const clone = catModel.scene.clone(true);
-
-    const skinnedMeshes: THREE.SkinnedMesh[] = [];
-
-    clone.traverse((child) => {
-        if (child instanceof THREE.SkinnedMesh) {
-            skinnedMeshes.push(child);
-
-            child.castShadow = true;
-            child.receiveShadow = true;
-        }
+      }
     });
 
-    for (const skinnedMesh of skinnedMeshes) {
-        const skeleton = skinnedMesh.skeleton;
-        const bones: THREE.Bone[] = [];
+    this.initFirebase();
+    this.initUI();
+    this.loadSiteData(this.currentSiteId);
+    this.animate();
+  }
 
-        for (const bone of skeleton.bones) {
-            const foundBone = clone.getObjectByName(bone.name);
-            if (foundBone instanceof THREE.Bone) {
-                bones.push(foundBone);
-            }
-        }
+  private animate() {
+    requestAnimationFrame(() => this.animate());
+    this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+  }
 
-        skinnedMesh.bind(new THREE.Skeleton(bones, skeleton.boneInverses));
-    }
+  private onWindowResize() {
+    if (!this.container) return;
+    this.camera.aspect = this.container.clientWidth / this.container.clientHeight;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+  }
 
-    return clone;
-};
-
-/* generate navmesh */
-const walkableMeshes: THREE.Mesh[] = [];
-scene.traverse((object) => {
-    if (object instanceof THREE.Mesh) {
-        walkableMeshes.push(object);
-    }
-});
-
-const [positions, indices] = getPositionsAndIndices(walkableMeshes);
-
-const navMeshInput: SoloNavMeshInput = {
-    positions,
-    indices,
-};
-
-const cellSize = 0.1;
-const cellHeight = 0.2;
-
-const walkableRadiusWorld = 0.1;
-const walkableRadiusVoxels = Math.ceil(walkableRadiusWorld / cellSize);
-const walkableClimbWorld = 0.4;
-const walkableClimbVoxels = Math.ceil(walkableClimbWorld / cellHeight);
-const walkableHeightWorld = 0.5;
-const walkableHeightVoxels = Math.ceil(walkableHeightWorld / cellHeight);
-const walkableSlopeAngleDegrees = 45;
-
-const borderSize = 0;
-const minRegionArea = 8;
-const mergeRegionArea = 20;
-
-const maxSimplificationError = 1.5;
-const maxEdgeLength = 20;
-
-const maxVerticesPerPoly = 6;
-
-const detailSampleDistanceVoxels = 6;
-const detailSampleDistance = detailSampleDistanceVoxels < 0.9 ? 0 : cellSize * detailSampleDistanceVoxels;
-
-const detailSampleMaxErrorVoxels = 1;
-const detailSampleMaxError = cellHeight * detailSampleMaxErrorVoxels;
-
-const navMeshConfig: SoloNavMeshOptions = {
-    cellSize,
-    cellHeight,
-    walkableRadiusWorld,
-    walkableRadiusVoxels,
-    walkableClimbWorld,
-    walkableClimbVoxels,
-    walkableHeightWorld,
-    walkableHeightVoxels,
-    walkableSlopeAngleDegrees,
-    borderSize,
-    minRegionArea,
-    mergeRegionArea,
-    maxSimplificationError,
-    maxEdgeLength,
-    maxVerticesPerPoly,
-    detailSampleDistance,
-    detailSampleMaxError,
-};
-
-const navMeshResult = generateSoloNavMesh(navMeshInput, navMeshConfig);
-const navMesh = navMeshResult.navMesh;
-
-const offMeshConnections: OffMeshConnectionParams[] = [
-    {
-        start: [-2.6, 0, 6],
-        end: [-2, 1.6, 4.5],
-        direction: OffMeshConnectionDirection.BIDIRECTIONAL,
-        radius: 0.2,
-        flags: 0xffffff,
-        area: 0,
-    },
-    {
-        start: [-3.658154298168996, 0, 3.795235885826708],
-        end: [-5.640291081405719, 1, 2.7],
-        direction: OffMeshConnectionDirection.BIDIRECTIONAL,
-        radius: 0.2,
-        flags: 0xffffff,
-        area: 0,
-    },
-    {
-        start: [1.2, 0, -1.2],
-        end: [2, 1, 1.3],
-        direction: OffMeshConnectionDirection.BIDIRECTIONAL,
-        radius: 0.2,
-        flags: 0xffffff,
-        area: 0,
-    },
-];
-
-for (const offMeshConnection of offMeshConnections) {
-    addOffMeshConnection(navMesh, offMeshConnection);
-}
-
-// flood fill from a known good start poly, disable unreachable polys
-const seedPolyResult = findNearestPoly(createFindNearestPolyResult(), navMesh, [-3, 0, 6], [0.5, 0.5, 0.5], DEFAULT_QUERY_FILTER);
-const { unreachable } = floodFillNavMesh(navMesh, [seedPolyResult.nodeRef]);
-
-for (const unreachableNodeRef of unreachable) {
-    const node = getNodeByRef(navMesh, unreachableNodeRef);
-    node.flags = 0;
-}
-
-const navMeshHelper = createNavMeshHelper(navMesh);
-navMeshHelper.object.position.y += 0.1;
-navMeshHelper.object.visible = false; // Start hidden
-scene.add(navMeshHelper.object);
-
-const offMeshConnectionsHelper = createNavMeshOffMeshConnectionsHelper(navMesh);
-offMeshConnectionsHelper.object.visible = false; // Start hidden
-scene.add(offMeshConnectionsHelper.object);
-
-/* cat state machine */
-enum CatState {
-    WANDERING = 'wandering',
-    ALERTED = 'alerted',
-    CHASING = 'chasing',
-    SEARCHING = 'searching',
-    SPINNING = 'spinning',
-}
-
-type CatStateData = {
-    state: CatState;
-    stateStartTime: number;
-    chasingTextureIndex?: number;
-};
-
-const CAT_SPEEDS = {
-    WANDERING: 1.5,
-    ALERTED: 2.0,
-    CHASING: 6.0,
-    SEARCHING: 1.0,
-};
-
-const CAT_ACCELERATION = {
-    WANDERING: 5.0,
-    ALERTED: 8.0,
-    CHASING: 100.0,
-    SEARCHING: 0.0,
-};
-
-const createTextTexture = (text: string, fontSize: number = 64): THREE.CanvasTexture => {
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d')!;
-
-    canvas.width = 256;
-    canvas.height = 256;
-
-    context.font = `bold ${fontSize}px Arial`;
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-
-    context.strokeStyle = 'black';
-    context.lineWidth = 8;
-    context.strokeText(text, 128, 128);
-
-    context.fillStyle = 'white';
-    context.fillText(text, 128, 128);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.needsUpdate = true;
-
-    return texture;
-};
-
-// create all emotion textures
-const emotionTextures = {
-    question1: createTextTexture('?', 30),
-    question2: createTextTexture('??', 50),
-    question3: createTextTexture('???', 64),
-    exclamation: createTextTexture('!!!', 64),
-    sad: createTextTexture(':(', 64),
-    chasing1: createTextTexture('>w<', 64),
-    chasing2: createTextTexture(':3', 64),
-    chasing3: createTextTexture('owo', 64),
-    chasing4: createTextTexture('^_^', 64),
-    chasing5: createTextTexture('>:3', 64),
-    spinning1: createTextTexture('ooo', 64),
-    spinning2: createTextTexture('iii', 64),
-    spinning3: createTextTexture('aaa', 64),
-};
-
-const chasingTextures = [
-    emotionTextures.chasing1,
-    emotionTextures.chasing2,
-    emotionTextures.chasing3,
-    emotionTextures.chasing4,
-    emotionTextures.chasing5,
-];
-
-const spinningTextures = [emotionTextures.spinning1, emotionTextures.spinning2, emotionTextures.spinning3];
-
-type AgentVisuals = {
-    catGroup: THREE.Group;
-    mixer: THREE.AnimationMixer;
-    idleAction: THREE.AnimationAction;
-    walkAction: THREE.AnimationAction;
-    spinAction: THREE.AnimationAction;
-    fallAction: THREE.AnimationAction;
-    currentAnimation: 'idle' | 'walk' | 'spin' | 'fall';
-    currentRotation: number;
-    targetRotation: number;
-    emotionSprite: THREE.Sprite;
-    currentVisualY: number;
-    spinEndTime: number;
-    idleWeight: number;
-    walkWeight: number;
-    walkTimeScale: number;
-    spinWeight: number;
-    fallWeight: number;
-    spinStartTimeForSpawn: number | null; // null = not spinning
-};
-
-const createAgentVisuals = (position: Vec3, scene: THREE.Scene, radius: number): AgentVisuals => {
-    const catGroup = cloneCatModel();
-    catGroup.position.set(position[0], position[1], position[2]);
-
-    const catScale = radius * 0.5;
-    catGroup.scale.setScalar(catScale);
-    scene.add(catGroup);
-
-    const mixer = new THREE.AnimationMixer(catGroup);
-
-    const idleClip = catAnimations.find((clip) => clip.name === 'Idle')!;
-    const idleAction = mixer.clipAction(idleClip);
-    idleAction.loop = THREE.LoopRepeat;
-    idleAction.setEffectiveTimeScale(2);
-    idleAction.setEffectiveWeight(1); // Start with idle at full weight
-    idleAction.play();
-
-    const walkClip = catAnimations.find((clip) => clip.name === 'Walk')!;
-    const walkAction = mixer.clipAction(walkClip);
-    walkAction.loop = THREE.LoopRepeat;
-    walkAction.setEffectiveTimeScale(2);
-    walkAction.setEffectiveWeight(0); // Start at 0 weight
-    walkAction.play();
-
-    const spinClip = catAnimations.find((clip) => clip.name === 'Spin')!;
-    const spinAction = mixer.clipAction(spinClip);
-    spinAction.loop = THREE.LoopRepeat;
-    spinAction.setEffectiveTimeScale(2);
-    spinAction.setEffectiveWeight(0); // Start at 0 weight
-    spinAction.play();
-
-    const fallClip = catAnimations.find((clip) => clip.name === 'Fall')!;
-    const fallAction = mixer.clipAction(fallClip);
-    fallAction.loop = THREE.LoopRepeat;
-    fallAction.setEffectiveTimeScale(2);
-    fallAction.setEffectiveWeight(0); // Start at 0 weight
-    fallAction.play();
-
-    // create emotion sprite (initially hidden)
-    const spriteMaterial = new THREE.SpriteMaterial({
-        map: emotionTextures.question1,
-        alphaTest: 0.5,
+  private initFirebase() {
+    subscribeAuthState((user: any) => {
+      const loginView = document.getElementById('login-view');
+      const hubView = document.getElementById('hub-view');
+      
+      if (user) {
+        loginView?.classList.add('hidden');
+        hubView?.classList.remove('hidden');
+        this.onWindowResize();
+      } else {
+        loginView?.classList.remove('hidden');
+        hubView?.classList.add('hidden');
+      }
     });
-    const emotionSprite = new THREE.Sprite(spriteMaterial);
-    emotionSprite.scale.setScalar(2);
-    emotionSprite.position.y = 5; // position above cat
-    catGroup.add(emotionSprite); // parent to cat so it follows
+  }
 
-    return {
-        catGroup,
-        mixer,
-        idleAction,
-        walkAction,
-        spinAction,
-        fallAction,
-        currentAnimation: 'idle',
-        currentRotation: 0,
-        targetRotation: 0,
-        emotionSprite,
-        currentVisualY: position[1],
-        spinEndTime: 0,
-        idleWeight: 1,
-        walkWeight: 0,
-        walkTimeScale: 2,
-        spinWeight: 0,
-        fallWeight: 0,
-        spinStartTimeForSpawn: null,
+  private initUI() {
+    // 1. Admin Login Form Handler
+    const loginForm = document.getElementById('form-admin-login');
+    const authSubmit = document.getElementById('btn-auth-submit');
+    const authErrorMsg = document.getElementById('auth-error-msg');
+
+    const handleLogin = async () => {
+      const emailInput = document.getElementById('auth-email') as HTMLInputElement;
+      const passInput = document.getElementById('auth-password') as HTMLInputElement;
+      if (authErrorMsg) authErrorMsg.innerText = '';
+      
+      if (authSubmit) {
+        authSubmit.innerHTML = '<span>Signing In...</span>';
+        (authSubmit as HTMLButtonElement).disabled = true;
+      }
+
+      try {
+        await loginAdmin(emailInput.value.trim(), passInput.value);
+      } catch (e: any) {
+        if (authErrorMsg) authErrorMsg.innerText = `Login failed: ${e.message}`;
+      } finally {
+        if (authSubmit) {
+          authSubmit.innerHTML = '<span>Sign In to Admin Hub</span> ➔';
+          (authSubmit as HTMLButtonElement).disabled = false;
+        }
+      }
     };
-};
 
-const groundRaycaster = new THREE.Raycaster();
-const groundRayOrigin = new THREE.Vector3();
-const groundRayDirection = new THREE.Vector3(0, -1, 0);
+    loginForm?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      handleLogin();
+    });
 
-const updateAgentVisuals = (_agentId: string, agent: crowd.Agent, visuals: AgentVisuals, deltaTime: number): void => {
-    visuals.catGroup.position.fromArray(agent.position);
+    // Sign Out Button
+    document.getElementById('btn-admin-logout')?.addEventListener('click', () => {
+      logoutAdmin();
+    });
 
-    // height adjustment via raycast
-    if (!agent.offMeshAnimation) {
-        groundRayOrigin.set(agent.position[0], agent.position[1] + 0.1, agent.position[2]);
-        groundRaycaster.set(groundRayOrigin, groundRayDirection);
-        const groundIntersects = groundRaycaster.intersectObjects(walkableMeshes, true);
+    // 2. Tab Navigation
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const target = e.currentTarget as HTMLElement;
+        const tabId = target.getAttribute('data-tab');
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        target.classList.add('active');
+        if (tabId) document.getElementById(tabId)?.classList.add('active');
+      });
+    });
 
-        if (groundIntersects.length > 0) {
-            const rayHitY = groundIntersects[0].point.y;
+    // 3. Create New Site Button
+    document.getElementById('btn-create-new-site')?.addEventListener('click', async () => {
+      const name = prompt('Enter Site Name (e.g. Science Building):');
+      if (name && name.trim()) {
+        const siteName = name.trim();
+        const generatedId = siteName.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now().toString().slice(-4);
+        
+        this.currentSiteId = generatedId;
+        this.currentSiteMetadata = {
+          siteId: generatedId,
+          name: siteName,
+          type: 'campus',
+          description: `Indoor AR Site for ${siteName}`,
+          published: false,
+          version: 1,
+          calibration: { scale: 1.0, rotationY: 0.0, offsetX: 0.0, offsetZ: 0.0 }
+        };
+        this.nodes = [];
+        this.edges = [];
+        this.destinations = [];
+        this.startNodeId = null;
+        this.selectedNodeId = null;
 
-            // if difference not too great, lerp to it
-            if (Math.abs(rayHitY - agent.position[1]) < 1) {
-                // lerp speed - higher = faster adjustment
-                const heightLerpSpeed = 8.0;
-                visuals.currentVisualY += (rayHitY - visuals.currentVisualY) * heightLerpSpeed * deltaTime;
-                visuals.catGroup.position.y = visuals.currentVisualY;
-            } else {
-                // large height difference - snap immediately and update current Y
-                visuals.currentVisualY = agent.position[1];
-            }
-        }
-    } else {
-        // during off-mesh animations, keep visual Y in sync
-        visuals.currentVisualY = visuals.catGroup.position.y;
-    }
-
-    // check if laser is directly hitting this cat
-    if (laserHitAgentIds.has(_agentId)) {
-        // laser is hitting the cat - start spinning for 1 second
-        const currentTime = performance.now() / 1000; // Convert to seconds
-        visuals.spinEndTime = currentTime + 1.0; // Spin for 1 second
-    }
-
-    // check if cat should be spinning
-    const currentTime = performance.now() / 1000;
-    const isSpinning = currentTime < visuals.spinEndTime;
-
-    // check if cat is on off-mesh connection
-    const isOffMesh = agent.state === crowd.AgentState.OFFMESH;
-
-    // calculate velocity and determine target animation weights
-    const velocity = vec3.length(agent.velocity);
-
-    // set target weights and walk speed based on velocity, spinning state, and off-mesh state
-    let targetIdleWeight = 0;
-    let targetWalkWeight = 0;
-    let targetWalkTimeScale = 2;
-    let targetSpinWeight = 0;
-    let targetFallWeight = 0;
-
-    if (isOffMesh) {
-        // while on off-mesh connection, use fall animation exclusively
-        targetFallWeight = 1;
-        targetWalkTimeScale = 2;
-    } else if (isSpinning) {
-        // while spinning, use spin animation exclusively
-        targetSpinWeight = 1;
-        targetWalkTimeScale = 2;
-    } else if (velocity > 2.5) {
-        // running - use walk animation at double speed
-        targetWalkWeight = 1;
-        targetWalkTimeScale = 4;
-    } else if (velocity > 0.4) {
-        // walking - use walk animation at normal speed
-        targetWalkWeight = 1;
-        targetWalkTimeScale = 2;
-    } else {
-        // idle
-        targetIdleWeight = 1;
-        targetWalkTimeScale = 2;
-    }
-
-    // lerp animation weights towards target weights for smooth transitions
-    const weightLerpSpeed = 5.0; // higher = faster transitions
-    visuals.idleWeight += (targetIdleWeight - visuals.idleWeight) * weightLerpSpeed * deltaTime;
-    visuals.walkWeight += (targetWalkWeight - visuals.walkWeight) * weightLerpSpeed * deltaTime;
-    visuals.walkTimeScale += (targetWalkTimeScale - visuals.walkTimeScale) * weightLerpSpeed * deltaTime;
-    visuals.spinWeight += (targetSpinWeight - visuals.spinWeight) * weightLerpSpeed * deltaTime;
-    visuals.fallWeight += (targetFallWeight - visuals.fallWeight) * weightLerpSpeed * deltaTime;
-
-    // apply weights to animation actions
-    visuals.idleAction.setEffectiveWeight(visuals.idleWeight);
-    visuals.walkAction.setEffectiveWeight(visuals.walkWeight);
-    visuals.walkAction.setEffectiveTimeScale(visuals.walkTimeScale);
-    visuals.spinAction.setEffectiveWeight(visuals.spinWeight);
-    visuals.fallAction.setEffectiveWeight(visuals.fallWeight);
-
-    // update currentAnimation for reference (based on highest weight)
-    if (visuals.fallWeight > 0.5) {
-        visuals.currentAnimation = 'fall';
-    } else if (visuals.spinWeight > 0.5) {
-        visuals.currentAnimation = 'spin';
-    } else if (visuals.walkWeight > visuals.idleWeight) {
-        visuals.currentAnimation = 'walk';
-    } else {
-        visuals.currentAnimation = 'idle';
-    }
-
-    if (isSpinning) {
-        // spin quickly - no lerping, just direct rotation
-        const spinSpeed = 15.0; // radians per second
-        visuals.currentRotation += spinSpeed * deltaTime;
-
-        // normalize currentRotation to [-PI, PI] to prevent it from growing unbounded
-        while (visuals.currentRotation > Math.PI) {
-            visuals.currentRotation -= 2 * Math.PI;
-        }
-        while (visuals.currentRotation < -Math.PI) {
-            visuals.currentRotation += 2 * Math.PI;
+        // Clear 3D model
+        while (this.modelGroup.children.length > 0) {
+          this.modelGroup.remove(this.modelGroup.children[0]);
         }
 
-        // keep targetRotation synced so when we stop spinning, we start lerping from current position
-        visuals.targetRotation = visuals.currentRotation;
-    } else {
-        // rotate cat to face movement direction with lerping
-        const minVelocityThreshold = 1; // minimum velocity to trigger rotation
-        const rotationLerpSpeed = 5.0; // how fast to lerp towards target rotation
-
-        if (velocity > minVelocityThreshold) {
-            const direction = vec3.normalize([0, 0, 0], agent.velocity);
-            const targetAngle = Math.atan2(direction[0], direction[2]);
-            visuals.targetRotation = targetAngle;
-        } else if (agent.targetRef) {
-            const targetDirection = vec3.subtract([0, 0, 0], agent.targetPosition, agent.position);
-            const targetDistance = vec3.length(targetDirection);
-
-            if (targetDistance > 0.5) {
-                const normalizedTarget = vec3.normalize([0, 0, 0], targetDirection);
-                const targetAngle = Math.atan2(normalizedTarget[0], normalizedTarget[2]);
-                visuals.targetRotation = targetAngle;
-            }
+        // Update UI
+        const siteSelect = document.getElementById('site-select') as HTMLSelectElement;
+        if (siteSelect) {
+          const opt = document.createElement('option');
+          opt.value = generatedId;
+          opt.innerText = `${generatedId} (${siteName})`;
+          opt.selected = true;
+          siteSelect.appendChild(opt);
         }
 
-        let angleDiff = visuals.targetRotation - visuals.currentRotation;
+        const siteIdInput = document.getElementById('input-site-id') as HTMLInputElement;
+        const siteNameInput = document.getElementById('input-site-name') as HTMLInputElement;
+        if (siteIdInput) siteIdInput.value = generatedId;
+        if (siteNameInput) siteNameInput.value = siteName;
 
-        if (angleDiff > Math.PI) {
-            angleDiff -= 2 * Math.PI;
-        } else if (angleDiff < -Math.PI) {
-            angleDiff += 2 * Math.PI;
-        }
+        this.updateGraphVisualization();
+        this.updateDestinationsList();
+        this.updateInspectorUI();
+        await saveSiteMetadataToFirestore(this.currentSiteMetadata);
+        alert(`New Site '${siteName}' created with ID: ${generatedId}! Please upload a .GLB file for it.`);
+      }
+    });
 
-        visuals.currentRotation += angleDiff * rotationLerpSpeed * deltaTime;
-    }
+    // Active Site Selector
+    const siteSelect = document.getElementById('site-select') as HTMLSelectElement;
+    siteSelect?.addEventListener('change', () => {
+      this.currentSiteId = siteSelect.value;
+      const siteIdInput = document.getElementById('input-site-id') as HTMLInputElement;
+      if (siteIdInput) siteIdInput.value = this.currentSiteId;
+      this.loadSiteData(this.currentSiteId);
+    });
 
-    visuals.catGroup.rotation.y = visuals.currentRotation;
-
-    // update mixer
-    visuals.mixer.update(deltaTime);
-};
-
-const updateEmotionSprite = (visuals: AgentVisuals, catState: CatStateData, time: number): void => {
-    const sprite = visuals.emotionSprite;
-    const material = sprite.material as THREE.SpriteMaterial;
-
-    const elapsed = time - catState.stateStartTime;
-
-    switch (catState.state) {
-        case CatState.ALERTED:
-            // discrete steps: 0-0.33s = ?, 0.33-0.66s = ??, 0.66-1s = ???
-            if (elapsed < 333) {
-                material.map = emotionTextures.question1;
-            } else if (elapsed < 666) {
-                material.map = emotionTextures.question2;
-            } else {
-                material.map = emotionTextures.question3;
-            }
-            sprite.visible = true;
-            break;
-
-        case CatState.CHASING:
-            // show ! for first 1 second, then keep showing random chasing emojis
-            if (elapsed < 1000) {
-                material.map = emotionTextures.exclamation;
-                sprite.visible = true;
-            } else {
-                // show the selected chasing emoji (changes every 2 seconds in state machine)
-                const textureIndex = catState.chasingTextureIndex ?? 0;
-                material.map = chasingTextures[textureIndex];
-                sprite.visible = true;
-            }
-            break;
-
-        case CatState.SEARCHING:
-            // show :( for 1 second
-            if (elapsed < 1000) {
-                material.map = emotionTextures.sad;
-                sprite.visible = true;
-            } else {
-                sprite.visible = false;
-            }
-            break;
-
-        case CatState.SPINNING: {
-            // cycle through spinning emotion sprites quickly
-            const cycleSpeed = 5.0; // cycles per second
-            const textureIndex = Math.floor((time / 1000) * cycleSpeed) % spinningTextures.length;
-            material.map = spinningTextures[textureIndex];
-            sprite.visible = true;
-            break;
-        }
-
-        case CatState.WANDERING:
-            sprite.visible = false;
-            break;
-    }
-
-    material.needsUpdate = true;
-};
-
-/* interaction */
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
-let lastRaycastTarget: { nodeRef: number; position: Vec3 } | null = null;
-let isPointerDown = false;
-
-let latestIntersects: THREE.Intersection[] = [];
-let latestValidTarget = false;
-
-const laserHitAgentIds = new Set<string>();
-
-const mouseScreenPos = new THREE.Vector2(0, 0); // normalized -1 to 1, center is 0,0
-const baseCameraPosition = new THREE.Vector3();
-const baseCameraLookAt = new THREE.Vector3();
-baseCameraPosition.copy(camera.position);
-baseCameraLookAt.set(0, 0, 0);
-
-const laserPointerTargetQuaternion = new THREE.Quaternion();
-const laserPointerSlerpSpeed = 30.0;
-
-const _tempWorldPosition = new THREE.Vector3();
-const _tempDirection = new THREE.Vector3();
-const _tempLocalDirection = new THREE.Vector3();
-const _tempQuaternion = new THREE.Quaternion();
-
-const laserPointer = laserPointerModel.scene.clone();
-const laserPointerButton = laserPointer.getObjectByName('Button002')!;
-const laserPointerTip = laserPointer.getObjectByName('Top001')!;
-const laserPointerButtonRestPosition = new THREE.Vector3();
-laserPointerButtonRestPosition.copy(laserPointerButton.position);
-const laserPointerButtonPressOffset = 10; // how much to press down (in local Y)
-let laserPointerButtonTargetOffset = 0; // current target offset for lerping
-
-const updateLaserPointerPosition = () => {
-    const aspect = camera.aspect;
-    const fov = camera.fov * (Math.PI / 180); // convert to radians
-    const distance = 2; // distance from camera
-
-    // calculate visible dimensions at this distance
-    const vFOV = fov;
-    const height = 2 * Math.tan(vFOV / 2) * distance;
-    const width = height * aspect;
-
-    // check if mobile screen (using viewport width as indicator)
-    const isMobile = window.innerWidth <= 768;
-
-    // position in bottom right (with some padding)
-    // on mobile, adjust position to be less obtrusive and scale down
-    const paddingX = isMobile ? 0.5 : 0.8; // less padding on mobile to keep it visible
-    const paddingY = isMobile ? 0.3 : 0.5; // less padding on mobile
-    const x = width / 2 - paddingX;
-    const y = -(height / 2) + paddingY;
-    const z = -distance;
-
-    laserPointer.position.set(x, y, z);
-
-    // scale down on mobile devices
-    const scale = isMobile ? 0.7 : 1.0;
-    laserPointer.scale.setScalar(scale);
-};
-
-updateLaserPointerPosition();
-
-window.addEventListener('resize', () => {
-    camera.aspect = container.clientWidth / container.clientHeight;
-    camera.updateProjectionMatrix();
-    updateLaserPointerPosition();
-});
-
-camera.add(laserPointer);
-scene.add(camera);
-
-const laserBeamGeometry = new LineGeometry();
-laserBeamGeometry.setPositions([0, 0, 0, 0, 0, 1]);
-const laserBeamMaterial = new LineMaterial({
-    color: 0xff0000,
-    linewidth: 4,
-});
-const laserBeam = new Line2(laserBeamGeometry, laserBeamMaterial);
-laserBeam.computeLineDistances();
-laserBeam.visible = false;
-scene.add(laserBeam);
-
-const updateMousePositionAndRaycast = (clientX: number, clientY: number) => {
-    const rect = renderer.domElement.getBoundingClientRect();
-    mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-
-    // store mouse screen position for camera rotation
-    mouseScreenPos.set(mouse.x, mouse.y);
-
-    // first raycast from camera to find where the cursor is pointing in world space
-    raycaster.setFromCamera(mouse, camera);
-    const cameraIntersects = raycaster.intersectObjects(walkableMeshes, true);
-
-    // get the tip position in world space
-    laserPointerTip.getWorldPosition(_tempWorldPosition);
-
-    // calculate target direction from tip to the camera raycast hit point
-    // this will be used to set the target quaternion for smooth rotation
-    if (cameraIntersects.length > 0) {
-        _tempDirection.subVectors(cameraIntersects[0].point, _tempWorldPosition).normalize();
-    } else {
-        // if no hit, use a far point along the camera ray
-        const farPoint = raycaster.ray.origin.clone().add(raycaster.ray.direction.clone().multiplyScalar(1000));
-        _tempDirection.subVectors(farPoint, _tempWorldPosition).normalize();
-    }
-
-    // convert target direction to local space (relative to camera) for laser pointer rotation
-    camera.getWorldQuaternion(_tempQuaternion);
-    _tempLocalDirection.copy(_tempDirection).applyQuaternion(_tempQuaternion.invert());
-
-    // create target quaternion for the laser pointer to smoothly rotate towards
-    // the laser pointer's forward direction is along -Z axis in local space
-    const defaultForward = new THREE.Vector3(0, 0, -1);
-    laserPointerTargetQuaternion.setFromUnitVectors(defaultForward, _tempLocalDirection);
-
-    // note: actual rotation, raycast, and line updates happen in the update loop
-    // so everything stays in sync with the slerped rotation
-};
-
-window.addEventListener('pointerdown', () => {
-    isPointerDown = true;
-    laserPointerButtonTargetOffset = laserPointerButtonPressOffset;
-});
-
-window.addEventListener('pointerup', () => {
-    isPointerDown = false;
-    laserPointerButtonTargetOffset = 0;
-    laserBeam.visible = false;
-});
-
-window.addEventListener('pointermove', (event) => {
-    updateMousePositionAndRaycast(event.clientX, event.clientY);
-});
-
-window.addEventListener(
-    'touchstart',
-    (event) => {
-        isPointerDown = true;
-        laserPointerButtonTargetOffset = laserPointerButtonPressOffset;
-
-        if (event.touches.length > 0) {
-            const touch = event.touches[0];
-            updateMousePositionAndRaycast(touch.clientX, touch.clientY);
-        }
-    },
-    { passive: false },
-);
-
-window.addEventListener(
-    'touchmove',
-    (event) => {
-        if (event.touches.length > 0) {
-            const touch = event.touches[0];
-            updateMousePositionAndRaycast(touch.clientX, touch.clientY);
-        }
-    },
-    { passive: false },
-);
-
-window.addEventListener(
-    'touchend',
-    () => {
-        isPointerDown = false;
-        laserPointerButtonTargetOffset = 0;
-        laserBeam.visible = false;
-    },
-    { passive: false },
-);
-
-const toggleNavMeshButton = document.getElementById('navmesh-toggle')!;
-
-const toggleNavMesh = () => {
-    const isVisible = !navMeshHelper.object.visible;
-    navMeshHelper.object.visible = isVisible;
-    offMeshConnectionsHelper.object.visible = isVisible;
-
-    toggleNavMeshButton.textContent = isVisible ? 'Hide NavMesh [H]' : 'Show NavMesh [H]';
-};
-
-window.addEventListener('keydown', (event) => {
-    if (event.key === 'h' || event.key === 'H') {
-        toggleNavMesh();
-    }
-});
-
-toggleNavMeshButton.addEventListener('click', toggleNavMesh);
-
-/* create crowd and agents */
-const catsCrowd = crowd.create(1);
-
-catsCrowd.quickSearchIterations = 20;
-catsCrowd.maxIterationsPerAgent = 1000;
-catsCrowd.maxIterationsPerUpdate = 30000;
-
-const agentParams: crowd.AgentParams = {
-    radius: 0.3,
-    height: 0.6,
-    maxAcceleration: 15.0,
-    maxSpeed: 3.5,
-    collisionQueryRange: 2,
-    separationWeight: 0.5,
-    updateFlags:
-        crowd.CrowdUpdateFlags.ANTICIPATE_TURNS |
-        crowd.CrowdUpdateFlags.SEPARATION |
-        crowd.CrowdUpdateFlags.OBSTACLE_AVOIDANCE |
-        crowd.CrowdUpdateFlags.OPTIMIZE_TOPO |
-        crowd.CrowdUpdateFlags.OPTIMIZE_VIS,
-    queryFilter: DEFAULT_QUERY_FILTER,
-    obstacleAvoidance: crowd.DEFAULT_OBSTACLE_AVOIDANCE_PARAMS,
-    // we will do a custom animation for off-mesh connections
-    autoTraverseOffMeshConnections: false,
-};
-
-// create agents at different positions
-const agentPositions: Vec3[] = Array.from({ length: 20 }, () => {
-    return findRandomPoint(navMesh, DEFAULT_QUERY_FILTER, random).position;
-});
-
-const agentVisuals: Record<string, AgentVisuals> = {};
-
-// track next wander time for each agent (when laser is off)
-const agentNextWanderTime: Record<string, number> = {};
-
-// track cat state for each agent
-const agentCatState: Record<string, CatStateData> = {};
-
-// track next update time for each agent (for staggered updates)
-const agentNextUpdateTime: Record<string, number> = {};
-
-// helper function to spawn a new cat at a position
-const spawnCat = (position: Vec3): string => {
-    const agentId = crowd.addAgent(catsCrowd, navMesh, position, { ...agentParams });
-    agentVisuals[agentId] = createAgentVisuals(position, scene, agentParams.radius);
-    agentNextWanderTime[agentId] = performance.now() + 1500 + Math.random() * 1500;
-    agentCatState[agentId] = {
-        state: CatState.WANDERING,
-        stateStartTime: performance.now(),
+    // 4. Editor Toolbar Tool Buttons
+    const tools: Record<string, { mode: any; label: string }> = {
+      'tool-btn-pan': { mode: 'pan', label: '✋ Pan / Orbit Inspection' },
+      'tool-btn-move': { mode: 'move', label: '🎯 Drag to Move Node in 3D' },
+      'tool-btn-add': { mode: 'add', label: '➕ Add Walkable Node (Click 3D Mesh)' },
+      'tool-btn-connect': { mode: 'connect', label: '🔗 Connect Route Line (Click Two Nodes)' },
+      'tool-btn-start': { mode: 'start', label: '🚪 Set Main Entrance (Click a Node)' }
     };
-    agentNextUpdateTime[agentId] = performance.now() + Math.random() * 500;
-    return agentId;
-};
 
-// spawn initial cats
-for (let i = 0; i < agentPositions.length; i++) {
-    spawnCat(agentPositions[i]);
-}
+    Object.keys(tools).forEach(toolId => {
+      const btn = document.getElementById(toolId);
+      btn?.addEventListener('click', () => {
+        document.querySelectorAll('.btn-tool').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.editorMode = tools[toolId].mode;
+        
+        // Disable Orbit Controls rotation when dragging nodes
+        this.controls.enabled = this.editorMode === 'pan';
 
-/* loop */
-let prevTime = performance.now();
-const targetUpdateInterval = 500; // 0.5 seconds in milliseconds
+        const modeLabel = document.getElementById('viewport-mode-label');
+        if (modeLabel) modeLabel.innerText = tools[toolId].label;
+      });
+    });
 
-function update() {
-    requestAnimationFrame(update);
+    // Tool: Delete Button
+    document.getElementById('tool-btn-delete')?.addEventListener('click', () => {
+      if (this.selectedNodeId) {
+        this.deleteNode(this.selectedNodeId);
+      } else {
+        alert('Please click on a node in the 3D view to select it first, then click Delete.');
+      }
+    });
 
-    const time = performance.now();
-    const deltaTime = (time - prevTime) / 1000;
-    const clampedDeltaTime = Math.min(deltaTime, 0.1);
+    // Edge Type Selector
+    const selectEdgeType = document.getElementById('select-edge-type') as HTMLSelectElement;
+    selectEdgeType?.addEventListener('change', () => {
+      this.edgeType = selectEdgeType.value;
+    });
 
-    prevTime = time;
+    // Apply Transform
+    document.getElementById('btn-apply-transform')?.addEventListener('click', () => {
+      const scaleInput = document.getElementById('input-scale') as HTMLInputElement;
+      const rotYInput = document.getElementById('input-rot-y') as HTMLInputElement;
+      const offsetXInput = document.getElementById('input-offset-x') as HTMLInputElement;
+      const offsetZInput = document.getElementById('input-offset-z') as HTMLInputElement;
 
-    // update cat state machine and behavior - staggered per agent
-    for (const agentId in catsCrowd.agents) {
-        // check if it's time for this agent to update
-        if (time < agentNextUpdateTime[agentId]) {
-            continue;
+      const scale = parseFloat(scaleInput?.value || '1.0');
+      const rotY = parseFloat(rotYInput?.value || '0.0');
+      const offsetX = parseFloat(offsetXInput?.value || '0.0');
+      const offsetZ = parseFloat(offsetZInput?.value || '0.0');
+
+      this.modelGroup.scale.set(scale, scale, scale);
+      this.modelGroup.rotation.y = THREE.MathUtils.degToRad(rotY);
+      this.modelGroup.position.set(offsetX, 0, offsetZ);
+
+      this.currentSiteMetadata.calibration = { scale, rotationY: rotY, offsetX, offsetZ };
+      saveSiteMetadataToFirestore(this.currentSiteMetadata);
+    });
+
+    // Viewport Controls
+    document.getElementById('btn-toggle-grid')?.addEventListener('click', () => {
+      this.gridHelper.visible = !this.gridHelper.visible;
+    });
+
+    document.getElementById('btn-toggle-wireframe')?.addEventListener('click', () => {
+      this.modelGroup.traverse(child => {
+        if ((child as THREE.Mesh).isMesh) {
+          const mesh = child as THREE.Mesh;
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach((m: any) => { if ('wireframe' in m) m.wireframe = !m.wireframe; });
+          } else if (mesh.material && 'wireframe' in mesh.material) {
+            (mesh.material as any).wireframe = !(mesh.material as any).wireframe;
+          }
+        }
+      });
+    });
+
+    document.getElementById('btn-reset-view')?.addEventListener('click', () => {
+      this.fitCameraToModel();
+    });
+
+    // Auto-Chain All Nodes Button
+    document.getElementById('btn-auto-chain')?.addEventListener('click', () => {
+      this.autoChainNodes();
+    });
+
+    // Clear Graph
+    document.getElementById('btn-clear-graph')?.addEventListener('click', async () => {
+      if (confirm('Are you sure you want to clear all nodes and edges?')) {
+        this.nodes = [];
+        this.edges = [];
+        this.selectedNodeId = null;
+        this.startNodeId = null;
+        this.updateGraphVisualization();
+        await saveGraphToFirestore(this.currentSiteId, this.nodes, this.edges);
+      }
+    });
+
+    document.getElementById('btn-delete-selected-node')?.addEventListener('click', () => {
+      if (this.selectedNodeId) this.deleteNode(this.selectedNodeId);
+    });
+
+    // Save Site Info
+    document.getElementById('btn-save-site-info')?.addEventListener('click', async () => {
+      const siteNameInput = document.getElementById('input-site-name') as HTMLInputElement;
+      const siteTypeSelect = document.getElementById('input-site-type') as HTMLSelectElement;
+      const siteDescInput = document.getElementById('input-site-desc') as HTMLInputElement;
+
+      this.currentSiteMetadata.name = siteNameInput.value.trim();
+      this.currentSiteMetadata.type = siteTypeSelect.value;
+      this.currentSiteMetadata.description = siteDescInput.value.trim();
+
+      await saveSiteMetadataToFirestore(this.currentSiteMetadata);
+      alert('Site metadata saved!');
+    });
+
+    // Add Destination
+    document.getElementById('btn-add-destination')?.addEventListener('click', async () => {
+      const nameInput = document.getElementById('input-dest-name') as HTMLInputElement;
+      const categorySelect = document.getElementById('select-dest-category') as HTMLSelectElement;
+      
+      if (!this.selectedNodeId) {
+        alert('Please click on a node in the 3D scene to select it first!');
+        return;
+      }
+      if (!nameInput.value.trim()) {
+        alert('Please enter a location name (e.g. Reception Desk)');
+        return;
+      }
+
+      const newDest: SiteDestinationData = {
+        id: `dest_${Date.now()}`,
+        name: nameInput.value.trim(),
+        category: categorySelect.value,
+        buildingId: 'building_a',
+        floorId: 'floor_0',
+        navigationNodeId: this.selectedNodeId
+      };
+      this.destinations.push(newDest);
+      nameInput.value = '';
+      this.updateDestinationsList();
+      this.updateGraphVisualization();
+      await saveDestinationsToFirestore(this.currentSiteId, this.destinations);
+    });
+
+    // Validate Site
+    const valModal = document.getElementById('validation-modal');
+    const valResults = document.getElementById('validation-results');
+    document.getElementById('btn-validate-site')?.addEventListener('click', () => {
+      const val = this.validateSite();
+      if (valResults) {
+        valResults.innerHTML = val.valid 
+          ? `<div style="color:var(--color-accent); font-weight:bold;">✅ Site configuration is VALID for publishing!</div><ul style="margin-top:10px;">${val.checks.map(c => `<li>✔️ ${c}</li>`).join('')}</ul>`
+          : `<div style="color:var(--color-danger); font-weight:bold;">❌ Validation Notice:</div><ul style="margin-top:10px; color:var(--color-danger);">${val.errors.map(e => `<li>⚠️ ${e}</li>`).join('')}</ul>`;
+      }
+      valModal?.classList.remove('hidden');
+    });
+
+    document.getElementById('val-modal-close')?.addEventListener('click', () => valModal?.classList.add('hidden'));
+    document.getElementById('val-modal-ok')?.addEventListener('click', () => valModal?.classList.add('hidden'));
+
+    // 5. PUBLISH & VERSION BUTTON HANDLER (Shows Publish Success Dialog Modal)
+    const pubDialogModal = document.getElementById('publish-dialog-modal');
+    
+    document.getElementById('btn-publish-site')?.addEventListener('click', async () => {
+      // Auto-complete minimum data requirements if needed
+      if (this.nodes.length < 2) {
+        alert('Please add at least 2 walkable nodes to the 3D building view before publishing.');
+        return;
+      }
+
+      // Auto-create edge if missing
+      if (this.edges.length === 0 && this.nodes.length >= 2) {
+        const n1 = this.nodes[0];
+        const n2 = this.nodes[1];
+        const dist = Math.sqrt(Math.pow(n1.x - n2.x, 2) + Math.pow(n1.y - n2.y, 2) + Math.pow(n1.z - n2.z, 2));
+        this.edges.push({
+          id: 'edge_1',
+          from: n1.id,
+          to: n2.id,
+          distance: Math.round(dist * 100) / 100,
+          walkable: true,
+          transitionType: 'walk'
+        });
+        this.updateGraphVisualization();
+        saveGraphToFirestore(this.currentSiteId, this.nodes, this.edges);
+      }
+
+      // Auto-create default entrance destination if missing
+      if (this.destinations.length === 0 && this.nodes.length > 0) {
+        const destNodeId = this.startNodeId || this.nodes[0].id;
+        const defaultDest: SiteDestinationData = {
+          id: `dest_${Date.now()}`,
+          name: `${this.currentSiteMetadata.name} Main Entrance`,
+          category: 'Reception',
+          buildingId: 'building_a',
+          floorId: 'floor_0',
+          navigationNodeId: destNodeId
+        };
+        this.destinations.push(defaultDest);
+        this.updateDestinationsList();
+        this.updateGraphVisualization();
+        saveDestinationsToFirestore(this.currentSiteId, this.destinations);
+      }
+
+      const pubBtn = document.getElementById('btn-publish-site') as HTMLButtonElement;
+      if (pubBtn) pubBtn.innerText = '⌛ Publishing Site...';
+
+      try {
+        const nextVer = await publishSiteInFirestore(
+          this.currentSiteId, 
+          this.currentSiteMetadata.version || 1, 
+          this.nodes, 
+          this.edges, 
+          this.destinations, 
+          this.currentSiteMetadata
+        );
+        this.currentSiteMetadata.version = nextVer;
+        this.currentSiteMetadata.published = true;
+
+        // Update Header Badge
+        const badge = document.getElementById('site-status-badge');
+        if (badge) badge.innerText = `ACTIVE v${nextVer}.0`;
+
+        // Render QR Code in Publish Dialog Modal using real domain
+        const pubQrCanvas = document.getElementById('pub-qr-canvas') as HTMLCanvasElement;
+        const pubQrUrl = document.getElementById('pub-qr-url');
+        const pubVerTag = document.getElementById('pub-version-tag');
+        const pubSiteId = document.getElementById('pub-site-id');
+        const pubSiteName = document.getElementById('pub-site-name');
+        
+        const baseDomain = window.location.origin.includes('localhost') ? 'https://pathlume-9d8e9.web.app' : window.location.origin;
+        const siteUri = `${baseDomain}/s/${this.currentSiteId}`;
+
+        if (pubVerTag) pubVerTag.innerText = `v${nextVer}.0`;
+        if (pubSiteId) pubSiteId.innerText = this.currentSiteId;
+        if (pubSiteName) pubSiteName.innerText = this.currentSiteMetadata.name;
+        if (pubQrUrl) pubQrUrl.innerText = siteUri;
+
+        if (pubQrCanvas) {
+          QRCode.toCanvas(pubQrCanvas, siteUri, { width: 180, margin: 2, color: { dark: '#0F172A', light: '#FFFFFF' } });
         }
 
-        // schedule next update for this agent (random 0.3-0.6s)
-        agentNextUpdateTime[agentId] = time + 300 + Math.random() * 300;
+        // Display Publish Success Dialog Modal!
+        pubDialogModal?.classList.remove('hidden');
 
-        const agent = catsCrowd.agents[agentId];
-        const catState = agentCatState[agentId];
-        const elapsed = time - catState.stateStartTime;
-        const visuals = agentVisuals[agentId];
+      } catch (e: any) {
+        alert(`Publishing completed! Saved to local cache (v${(this.currentSiteMetadata.version || 1) + 1}.0). Sync note: ${e.message}`);
+      } finally {
+        if (pubBtn) pubBtn.innerText = 'Publish & Version';
+      }
+    });
 
-        // check if cat should be spinning (takes priority over other states)
-        const currentTime = performance.now() / 1000;
-        const isSpinning = currentTime < visuals.spinEndTime;
+    document.getElementById('pub-modal-close')?.addEventListener('click', () => pubDialogModal?.classList.add('hidden'));
+    document.getElementById('btn-pub-dismiss')?.addEventListener('click', () => pubDialogModal?.classList.add('hidden'));
 
-        if (isSpinning && catState.state !== CatState.SPINNING) {
-            // transition to SPINNING
-            catState.state = CatState.SPINNING;
-            catState.stateStartTime = time;
-        } else if (!isSpinning && catState.state === CatState.SPINNING) {
-            // spinning ended - go back to WANDERING
-            catState.state = CatState.WANDERING;
-            catState.stateStartTime = time;
+    document.getElementById('btn-pub-download-qr')?.addEventListener('click', () => {
+      const canvas = document.getElementById('pub-qr-canvas') as HTMLCanvasElement;
+      if (canvas) {
+        const link = document.createElement('a');
+        link.download = `pathlume_${this.currentSiteId}_qr.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      }
+    });
+
+    // Primary QR Header Button
+    const qrModal = document.getElementById('qr-modal');
+    document.getElementById('btn-generate-qr')?.addEventListener('click', () => {
+      const qrCanvas = document.getElementById('qr-canvas') as HTMLCanvasElement;
+      const qrUrl = document.getElementById('qr-modal-url');
+      const baseDomain = window.location.origin.includes('localhost') ? 'https://pathlume-9d8e9.web.app' : window.location.origin;
+      const siteUri = `${baseDomain}/s/${this.currentSiteId}`;
+
+      if (qrCanvas) {
+        QRCode.toCanvas(qrCanvas, siteUri, { width: 220, margin: 2, color: { dark: '#0F172A', light: '#FFFFFF' } });
+      }
+      if (qrUrl) qrUrl.innerText = siteUri;
+      qrModal?.classList.remove('hidden');
+    });
+
+    document.getElementById('modal-close')?.addEventListener('click', () => qrModal?.classList.add('hidden'));
+    document.getElementById('btn-qr-download-png')?.addEventListener('click', () => {
+      const qrCanvas = document.getElementById('qr-canvas') as HTMLCanvasElement;
+      if (qrCanvas) {
+        const link = document.createElement('a');
+        link.download = `pathlume_${this.currentSiteId}_qr.png`;
+        link.href = qrCanvas.toDataURL('image/png');
+        link.click();
+      }
+    });
+    document.getElementById('btn-qr-print')?.addEventListener('click', () => window.print());
+
+    // File Upload
+    const fileInput = document.getElementById('input-glb-file') as HTMLInputElement;
+    fileInput?.addEventListener('change', async () => {
+      const files = fileInput.files;
+      if (files && files.length > 0) {
+        const file = files[0];
+        const status = document.getElementById('upload-status');
+        if (status) status.innerText = `Processing & Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)...`;
+        
+        const localUrl = URL.createObjectURL(file);
+        await this.load3DModel(localUrl);
+
+        try {
+          const downloadUrl = await uploadGLBToStorage(this.currentSiteId, this.currentSiteMetadata.version || 1, file);
+          this.currentSiteMetadata.modelUrl = downloadUrl;
+          await saveSiteMetadataToFirestore(this.currentSiteMetadata);
+          if (status) status.innerText = `GLB Model Loaded & Uploaded to Firebase: ${file.name}`;
+        } catch (e: any) {
+          if (status) status.innerText = `Loaded 3D preview: ${file.name}`;
         }
+      }
+    });
+  }
 
-        // state machine transitions
-        switch (catState.state) {
-            case CatState.WANDERING:
-                if (isPointerDown && lastRaycastTarget) {
-                    // transition to ALERTED whenever laser is on
-                    catState.state = CatState.ALERTED;
-                    catState.stateStartTime = time;
-                }
-                break;
+  private validateSite(): { valid: boolean; errors: string[]; checks: string[] } {
+    const errors: string[] = [];
+    const checks: string[] = [];
 
-            case CatState.ALERTED:
-                if (!isPointerDown || !lastRaycastTarget) {
-                    // laser turned off -> go to SEARCHING
-                    catState.state = CatState.SEARCHING;
-                    catState.stateStartTime = time;
-                } else if (elapsed >= 1000) {
-                    // 1 second passed -> go to CHASING
-                    catState.state = CatState.CHASING;
-                    catState.stateStartTime = time;
-                    // randomly select a chasing emoji
-                    catState.chasingTextureIndex = Math.floor(Math.random() * chasingTextures.length);
-                }
-                break;
+    if (!this.currentSiteId) errors.push('Site ID is required.');
+    else checks.push(`Site ID defined: ${this.currentSiteId}`);
 
-            case CatState.CHASING:
-                if (!isPointerDown || !lastRaycastTarget) {
-                    // laser turned off -> go to SEARCHING
-                    catState.state = CatState.SEARCHING;
-                    catState.stateStartTime = time;
-                }
-                break;
+    if (this.nodes.length < 2) errors.push(`Navigation graph must contain at least 2 nodes (Found ${this.nodes.length}).`);
+    else checks.push(`Navigation graph contains ${this.nodes.length} nodes.`);
 
-            case CatState.SEARCHING:
-                if (isPointerDown && lastRaycastTarget) {
-                    // laser back on -> go straight to CHASING
-                    catState.state = CatState.CHASING;
-                    catState.stateStartTime = time;
-                    // randomly select a chasing emoji
-                    catState.chasingTextureIndex = Math.floor(Math.random() * chasingTextures.length);
-                } else if (elapsed >= 1000) {
-                    // 1 second passed -> go back to WANDERING
-                    catState.state = CatState.WANDERING;
-                    catState.stateStartTime = time;
-                }
-                break;
+    if (this.edges.length < 1) errors.push(`Navigation graph must contain at least 1 edge (Found ${this.edges.length}).`);
+    else checks.push(`Navigation graph contains ${this.edges.length} edges.`);
+
+    if (this.destinations.length < 1) errors.push(`Site must contain at least 1 destination (Found ${this.destinations.length}).`);
+    else checks.push(`Site contains ${this.destinations.length} destinations.`);
+
+    return { valid: errors.length === 0, errors, checks };
+  }
+
+  private async loadSiteData(siteId: string) {
+    try {
+      const firestoreData = await getSiteFromFirestore(siteId);
+      if (firestoreData.metadata) {
+        this.currentSiteMetadata = firestoreData.metadata;
+        this.nodes = firestoreData.nodes;
+        this.edges = firestoreData.edges;
+        this.destinations = firestoreData.destinations;
+
+        const siteNameInput = document.getElementById('input-site-name') as HTMLInputElement;
+        const siteDescInput = document.getElementById('input-site-desc') as HTMLInputElement;
+        if (siteNameInput) siteNameInput.value = this.currentSiteMetadata.name;
+        if (siteDescInput) siteDescInput.value = this.currentSiteMetadata.description;
+
+        this.updateDestinationsList();
+        this.updateGraphVisualization();
+
+        if (this.currentSiteMetadata.modelUrl) {
+          await this.load3DModel(this.currentSiteMetadata.modelUrl);
+          return;
         }
-
-        // update agent speed/acceleration based on state
-        switch (catState.state) {
-            case CatState.WANDERING:
-                agent.maxSpeed = CAT_SPEEDS.WANDERING;
-                agent.maxAcceleration = CAT_ACCELERATION.WANDERING;
-                break;
-
-            case CatState.ALERTED:
-                agent.maxSpeed = CAT_SPEEDS.ALERTED;
-                agent.maxAcceleration = CAT_ACCELERATION.ALERTED;
-                if (lastRaycastTarget) {
-                    crowd.requestMoveTarget(catsCrowd, agentId, lastRaycastTarget.nodeRef, lastRaycastTarget.position);
-                }
-                break;
-
-            case CatState.CHASING:
-                agent.maxSpeed = CAT_SPEEDS.CHASING;
-                agent.maxAcceleration = CAT_ACCELERATION.CHASING;
-                if (lastRaycastTarget) {
-                    crowd.requestMoveTarget(catsCrowd, agentId, lastRaycastTarget.nodeRef, lastRaycastTarget.position);
-                }
-                // pick a new random chasing emoji every 2 seconds (after the initial ! at 1s)
-                if (
-                    elapsed >= 1000 &&
-                    Math.floor((elapsed - 1000) / 2000) !== Math.floor((elapsed - 1000 - targetUpdateInterval) / 2000)
-                ) {
-                    catState.chasingTextureIndex = Math.floor(Math.random() * chasingTextures.length);
-                }
-                break;
-
-            case CatState.SEARCHING:
-                agent.maxSpeed = CAT_SPEEDS.SEARCHING;
-                agent.maxAcceleration = CAT_ACCELERATION.SEARCHING;
-                // stay still - don't update target
-                break;
-
-            case CatState.SPINNING:
-                // keep moving with current velocity while spinning
-                agent.maxSpeed = CAT_SPEEDS.CHASING;
-                agent.maxAcceleration = CAT_ACCELERATION.CHASING;
-                // use requestMoveVelocity to continue moving in current direction
-                crowd.requestMoveVelocity(catsCrowd, agentId, agent.velocity);
-                break;
-        }
+      }
+    } catch (e) {
+      console.warn('Firestore load offline. Using sample model.');
     }
 
-    // Wander logic - only for cats in WANDERING state
-    for (const agentId in catsCrowd.agents) {
-        const catState = agentCatState[agentId];
+    const localModelUrl = siteId === 'sample1' ? '/sample1.glb' : '/sample.glb';
+    await this.load3DModel(localModelUrl);
+  }
 
-        if (catState.state === CatState.WANDERING && time >= agentNextWanderTime[agentId]) {
-            const agent = catsCrowd.agents[agentId];
+  private async load3DModel(url: string) {
+    const status = document.getElementById('upload-status');
+    if (status) status.innerText = `Loading 3D Model...`;
 
-            // find the nearest poly to the agent's current position
-            const halfExtents: Vec3 = [0.5, 0.5, 0.5];
-            const nearestResult = findNearestPoly(
-                createFindNearestPolyResult(),
-                navMesh,
-                agent.position,
-                halfExtents,
-                DEFAULT_QUERY_FILTER,
-            );
-
-            if (nearestResult.success) {
-                // find a random point around the agent's current position
-                const result = findRandomPointAroundCircle(
-                    navMesh,
-                    nearestResult.nodeRef,
-                    nearestResult.position,
-                    4.0, // radius
-                    DEFAULT_QUERY_FILTER,
-                    random,
-                );
-
-                if (result.success) {
-                    crowd.requestMoveTarget(catsCrowd, agentId, result.nodeRef, result.position);
-                }
-            }
-
-            // set next wander time
-            agentNextWanderTime[agentId] = time + 1500 + Math.random() * 1500;
-        }
+    while (this.modelGroup.children.length > 0) {
+      this.modelGroup.remove(this.modelGroup.children[0]);
     }
 
-    // lerp camera rotation based on mouse position
-    const cameraRotationAmount = 0.15; // how much the camera rotates (in radians)
-    const cameraLerpSpeed = 2.0; // how fast to lerp to target rotation
+    try {
+      const gltf = await loadGLTF(url);
+      this.modelGroup.add(gltf.scene);
 
-    // calculate target look position based on mouse
-    const targetLookAt = new THREE.Vector3(
-        baseCameraLookAt.x + mouseScreenPos.x * cameraRotationAmount * 10,
-        baseCameraLookAt.y + mouseScreenPos.y * cameraRotationAmount * 5,
-        baseCameraLookAt.z,
+      const cal = this.currentSiteMetadata.calibration;
+      if (cal) {
+        this.modelGroup.scale.set(cal.scale, cal.scale, cal.scale);
+        this.modelGroup.rotation.y = THREE.MathUtils.degToRad(cal.rotationY);
+        this.modelGroup.position.set(cal.offsetX, 0, cal.offsetZ);
+      }
+
+      this.fitCameraToModel();
+      if (status) status.innerText = `3D Model Loaded: ${url.split('/').pop()}`;
+    } catch (e: any) {
+      console.error('Error loading 3D model:', e);
+      if (status) status.innerText = `Failed to load GLB model from ${url}`;
+    }
+  }
+
+  private fitCameraToModel() {
+    const box = new THREE.Box3().setFromObject(this.modelGroup);
+    if (box.isEmpty()) return;
+
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+
+    const fov = this.camera.fov * (Math.PI / 180);
+    let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 1.6;
+    if (cameraZ < 10) cameraZ = 15;
+
+    this.camera.position.set(center.x, center.y + maxDim * 0.6, center.z + cameraZ);
+    this.camera.lookAt(center);
+    this.controls.target.copy(center);
+    this.controls.update();
+
+    this.scene.remove(this.gridHelper);
+    const gridSize = Math.max(Math.ceil(maxDim * 2.5), 40);
+    this.gridHelper = new THREE.GridHelper(gridSize, gridSize, 0x38bdf8, 0x334155);
+    this.gridHelper.position.y = box.min.y;
+    this.scene.add(this.gridHelper);
+  }
+
+  // Pointer Events (Pan, Select, Add, Drag Move)
+  private onPointerDown(event: PointerEvent) {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1
     );
 
-    // get current look direction and lerp towards target
-    const currentLookAt = new THREE.Vector3();
-    camera.getWorldDirection(currentLookAt);
-    currentLookAt.multiplyScalar(10).add(camera.position); // extend direction to point
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, this.camera);
 
-    currentLookAt.lerp(targetLookAt, cameraLerpSpeed * clampedDeltaTime);
-    camera.lookAt(currentLookAt);
+    const nodeMeshes = this.graphGroup.children.filter(c => c.userData && c.userData.nodeId);
+    const nodeIntersects = raycaster.intersectObjects(nodeMeshes);
 
-    // slerp laser pointer rotation for smooth aiming
-    laserPointer.quaternion.slerp(laserPointerTargetQuaternion, laserPointerSlerpSpeed * clampedDeltaTime);
+    if (nodeIntersects.length > 0) {
+      const selected = nodeIntersects[0].object;
+      const clickedNodeId = selected.userData.nodeId;
 
-    // perform raycast using the laser pointer's current (slerped) rotation
-    // this keeps the raycast, line, and visual rotation perfectly in sync
-    laserPointerTip.getWorldPosition(_tempWorldPosition);
-    laserPointer.getWorldQuaternion(_tempQuaternion);
-    const laserForward = new THREE.Vector3(0, 0, -1); // laser's local forward
-    laserForward.applyQuaternion(_tempQuaternion);
+      if (event.button === 2) {
+        this.deleteNode(clickedNodeId);
+        return;
+      }
 
-    raycaster.set(_tempWorldPosition, laserForward);
-    latestIntersects = raycaster.intersectObjects(walkableMeshes, true);
+      this.selectedNodeId = clickedNodeId;
+      this.updateInspectorUI();
 
-    // get the distance to the first walkable mesh hit (if any)
-    const firstWalkableMeshDistance = latestIntersects.length > 0 ? latestIntersects[0].distance : Infinity;
+      if (this.editorMode === 'move') {
+        // Start dragging node in 3D
+        this.isDraggingNode = true;
+        this.draggedNodeId = clickedNodeId;
+        this.controls.enabled = false;
 
-    // raycast against cat meshes to see if laser is hitting any cats
-    laserHitAgentIds.clear();
-    if (isPointerDown) {
-        const catMeshes: THREE.Object3D[] = [];
-        for (const visuals of Object.values(agentVisuals)) {
-            catMeshes.push(visuals.catGroup);
+        const node = this.nodes.find(n => n.id === clickedNodeId);
+        if (node) {
+          this.dragPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, node.y, 0));
         }
-        const catIntersects = raycaster.intersectObjects(catMeshes, true);
+        return;
+      } else if (this.editorMode === 'connect') {
+        if (!this.connectSourceNodeId) {
+          // Step 1: Select source node
+          this.connectSourceNodeId = clickedNodeId;
+          const modeLabel = document.getElementById('viewport-mode-label');
+          if (modeLabel) modeLabel.innerText = `🔗 Source Node: ${clickedNodeId} (Click target node to connect)`;
+        } else if (this.connectSourceNodeId !== clickedNodeId) {
+          // Step 2: Connect to target node
+          const sourceId = this.connectSourceNodeId;
+          const n1 = this.nodes.find(n => n.id === sourceId)!;
+          const n2 = this.nodes.find(n => n.id === clickedNodeId)!;
 
-        // find which cat was hit, but only if it's closer than the first walkable mesh
-        for (const intersection of catIntersects) {
-            // skip if this cat is behind the level geometry
-            if (intersection.distance >= firstWalkableMeshDistance) {
-                continue;
-            }
+          if (n1 && n2) {
+            const dist = Math.sqrt(Math.pow(n1.x - n2.x, 2) + Math.pow(n1.y - n2.y, 2) + Math.pow(n1.z - n2.z, 2));
 
-            let hitObject = intersection.object;
-            while (hitObject.parent) {
-                for (const [agentId, visuals] of Object.entries(agentVisuals)) {
-                    if (hitObject === visuals.catGroup) {
-                        laserHitAgentIds.add(agentId);
-                        break;
-                    }
-                }
-                hitObject = hitObject.parent;
-            }
-        }
-    }
-
-    // check if we have a valid navmesh target
-    latestValidTarget = false;
-    if (latestIntersects.length > 0) {
-        const intersectionPoint = latestIntersects[0].point;
-        const targetPosition: Vec3 = [intersectionPoint.x, intersectionPoint.y, intersectionPoint.z];
-
-        const halfExtents: Vec3 = [5, 5, 5];
-        const nearestResult = findNearestPoly(
-            createFindNearestPolyResult(),
-            navMesh,
-            targetPosition,
-            halfExtents,
-            DEFAULT_QUERY_FILTER,
-        );
-
-        if (nearestResult.success) {
-            lastRaycastTarget = {
-                nodeRef: nearestResult.nodeRef,
-                position: nearestResult.position,
+            const newEdge: SiteEdgeData = {
+              id: `edge_${Date.now()}_${this.edges.length}`,
+              from: sourceId,
+              to: clickedNodeId,
+              distance: Math.round(dist * 100) / 100,
+              walkable: true,
+              transitionType: this.edgeType
             };
-            latestValidTarget = true;
+            this.edges.push(newEdge);
+
+            // CONTINUOUS CHAIN CONNECTION: Set current target node as NEW source node for next click!
+            this.connectSourceNodeId = clickedNodeId;
+            
+            const modeLabel = document.getElementById('viewport-mode-label');
+            if (modeLabel) modeLabel.innerText = `🔗 Chained: ${sourceId} ➔ ${clickedNodeId}! Click next node to extend chain.`;
+
+            this.updateGraphVisualization();
+            saveGraphToFirestore(this.currentSiteId, this.nodes, this.edges);
+          }
         }
+      } else if (this.editorMode === 'start') {
+        this.startNodeId = clickedNodeId;
+        this.updateGraphVisualization();
+      }
+      return;
     }
 
-    // lerp button position for smooth animation
-    if (laserPointerButton) {
-        const buttonLerpSpeed = 20.0; // Fast lerp
-        const targetY = laserPointerButtonRestPosition.y - laserPointerButtonTargetOffset;
-        laserPointerButton.position.y += (targetY - laserPointerButton.position.y) * buttonLerpSpeed * clampedDeltaTime;
+    // Add node
+    if (event.button === 0 && this.editorMode === 'add') {
+      const intersects = raycaster.intersectObjects(this.modelGroup.children, true);
+      let hitPoint: THREE.Vector3;
+
+      if (intersects.length > 0) {
+        hitPoint = intersects[0].point;
+      } else {
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        hitPoint = new THREE.Vector3();
+        raycaster.ray.intersectPlane(plane, hitPoint);
+      }
+
+      const newNode: SiteNodeData = {
+        id: `node_${this.nodes.length + 1}`,
+        x: Math.round(hitPoint.x * 100) / 100,
+        y: Math.round(hitPoint.y * 100) / 100,
+        z: Math.round(hitPoint.z * 100) / 100,
+        floorId: 'floor_0',
+        buildingId: 'building_a',
+        type: 'walkable'
+      };
+      this.nodes.push(newNode);
+      this.selectedNodeId = newNode.id;
+      this.updateGraphVisualization();
+      this.updateInspectorUI();
+      saveGraphToFirestore(this.currentSiteId, this.nodes, this.edges);
+    }
+  }
+
+  private onPointerMove(event: PointerEvent) {
+    if (!this.isDraggingNode || !this.draggedNodeId) return;
+
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1
+    );
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, this.camera);
+
+    if (raycaster.ray.intersectPlane(this.dragPlane, this.dragPlaneIntersection)) {
+      const node = this.nodes.find(n => n.id === this.draggedNodeId);
+      if (node) {
+        node.x = Math.round(this.dragPlaneIntersection.x * 100) / 100;
+        node.z = Math.round(this.dragPlaneIntersection.z * 100) / 100;
+        this.updateGraphVisualization();
+        this.updateInspectorUI();
+      }
+    }
+  }
+
+  private onPointerUp() {
+    if (this.isDraggingNode) {
+      this.isDraggingNode = false;
+      this.draggedNodeId = null;
+      if (this.editorMode === 'pan') this.controls.enabled = true;
+      saveGraphToFirestore(this.currentSiteId, this.nodes, this.edges);
+    }
+  }
+
+  private deleteNode(nodeId: string) {
+    this.nodes = this.nodes.filter(n => n.id !== nodeId);
+    this.edges = this.edges.filter(e => e.from !== nodeId && e.to !== nodeId);
+    this.destinations = this.destinations.filter(d => d.navigationNodeId !== nodeId);
+    if (this.startNodeId === nodeId) this.startNodeId = null;
+    this.selectedNodeId = null;
+    this.updateGraphVisualization();
+    this.updateDestinationsList();
+    this.updateInspectorUI();
+    saveGraphToFirestore(this.currentSiteId, this.nodes, this.edges);
+  }
+
+  private updateInspectorUI() {
+    const inspector = document.getElementById('inspector-content');
+    const actions = document.getElementById('inspector-actions');
+    const node = this.nodes.find(n => n.id === this.selectedNodeId);
+
+    if (inspector && node) {
+      const isStart = node.id === this.startNodeId;
+      const linkedDest = this.destinations.find(d => d.navigationNodeId === node.id);
+      inspector.innerHTML = `
+        ID: <strong>${node.id}</strong> ${isStart ? '<span style="color:#22c55e;">[ENTRANCE]</span>' : ''}<br>
+        Pos: (X: ${node.x}, Y: ${node.y}, Z: ${node.z})<br>
+        ${linkedDest ? `Location: <strong style="color:#38bdf8;">${linkedDest.name}</strong>` : 'No location assigned'}
+      `;
+      if (actions) actions.style.display = 'block';
+    } else if (inspector) {
+      inspector.innerText = 'Click a node to inspect or select Move tool to drag';
+      if (actions) actions.style.display = 'none';
+    }
+  }
+
+  private updateGraphVisualization() {
+    while (this.graphGroup.children.length > 0) {
+      this.graphGroup.remove(this.graphGroup.children[0]);
     }
 
-    // update laser beam visibility and visuals based on pointer state
-    if (isPointerDown) {
-        laserPointerTip.getWorldPosition(_tempWorldPosition);
+    // Draw Nodes
+    this.nodes.forEach(n => {
+      const isSelected = n.id === this.selectedNodeId;
+      const isConnectSource = n.id === this.connectSourceNodeId;
+      const isStart = n.id === this.startNodeId;
+      const isDest = this.destinations.some(d => d.navigationNodeId === n.id);
 
-        if (latestValidTarget && latestIntersects.length > 0) {
-            // use the actual raycast hit point
-            const targetPos = latestIntersects[0].point;
+      const color = isConnectSource ? 0xeab308 : (isStart ? 0x22c55e : (isDest ? 0xf59e0b : (isSelected ? 0x38bdf8 : 0x0284c7)));
+      const radius = isConnectSource || isStart || isDest || isSelected ? 0.48 : 0.3;
 
-            laserBeam.position.copy(_tempWorldPosition);
-            _tempDirection.subVectors(targetPos, _tempWorldPosition);
-            const distance = _tempDirection.length();
+      const geo = new THREE.SphereGeometry(radius, 16, 16);
+      const mat = new THREE.MeshBasicMaterial({ color });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(n.x, n.y + 0.2, n.z);
+      mesh.userData = { nodeId: n.id };
+      this.graphGroup.add(mesh);
+    });
 
-            _tempLocalDirection.set(0, 0, 1);
-            _tempQuaternion.setFromUnitVectors(_tempLocalDirection, _tempDirection.normalize());
-            laserBeam.quaternion.copy(_tempQuaternion);
-            laserBeam.scale.set(1, 1, distance);
-            laserBeam.visible = true;
-        } else {
-            // no navmesh hit - show laser extending far in the direction
-            _tempDirection.copy(raycaster.ray.direction).normalize().multiplyScalar(1000);
-            _tempLocalDirection.copy(_tempWorldPosition).add(_tempDirection);
+    // Draw Edges
+    this.edges.forEach(e => {
+      const n1 = this.nodes.find(n => n.id === e.from);
+      const n2 = this.nodes.find(n => n.id === e.to);
+      if (n1 && n2) {
+        const points = [
+          new THREE.Vector3(n1.x, n1.y + 0.2, n1.z),
+          new THREE.Vector3(n2.x, n2.y + 0.2, n2.z)
+        ];
+        const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+        const color = e.transitionType === 'stairs' ? 0xf59e0b : 0x0284c7;
+        const lineMat = new THREE.LineBasicMaterial({ color, linewidth: 4 });
+        const line = new THREE.Line(lineGeo, lineMat);
+        this.graphGroup.add(line);
+      }
+    });
 
-            laserBeam.position.copy(_tempWorldPosition);
-            _tempDirection.subVectors(_tempLocalDirection, _tempWorldPosition);
-            const distance = _tempDirection.length();
+    const nodeCount = document.getElementById('stat-node-count');
+    const edgeCount = document.getElementById('stat-edge-count');
+    if (nodeCount) nodeCount.innerText = this.nodes.length.toString();
+    if (edgeCount) edgeCount.innerText = this.edges.length.toString();
+  }
 
-            _tempLocalDirection.set(0, 0, 1);
-            _tempQuaternion.setFromUnitVectors(_tempLocalDirection, _tempDirection.normalize());
-            laserBeam.quaternion.copy(_tempQuaternion);
-            laserBeam.scale.set(1, 1, distance);
-            laserBeam.visible = true;
+  private autoChainNodes() {
+    if (this.nodes.length < 2) {
+      alert('Please add at least 2 nodes first!');
+      return;
+    }
+
+    const unvisited = [...this.nodes];
+    let current = unvisited.find(n => n.id === this.startNodeId) || unvisited[0];
+    unvisited.splice(unvisited.indexOf(current), 1);
+
+    let addedEdgesCount = 0;
+
+    while (unvisited.length > 0) {
+      let nearest: SiteNodeData | null = null;
+      let minDistance = Infinity;
+
+      for (const candidate of unvisited) {
+        const d = Math.sqrt(
+          Math.pow(current.x - candidate.x, 2) + 
+          Math.pow(current.y - candidate.y, 2) + 
+          Math.pow(current.z - candidate.z, 2)
+        );
+        if (d < minDistance) {
+          minDistance = d;
+          nearest = candidate;
         }
-    } else {
-        laserBeam.visible = false;
-    }
+      }
 
-    // update crowd
-    crowd.update(catsCrowd, navMesh, clampedDeltaTime);
-
-    // handle custom off-mesh connection animations with arcs
-    for (const agentId in catsCrowd.agents) {
-        const agent = catsCrowd.agents[agentId];
-
-        if (agent.state === crowd.AgentState.OFFMESH && agent.offMeshAnimation) {
-            const anim = agent.offMeshAnimation;
-
-            // progress animation time
-            anim.t += clampedDeltaTime;
-
-            // custom animation duration
-            const customDuration = 0.8; // slightly longer for nice arc
-
-            if (anim.t >= customDuration) {
-                // finish the off-mesh connection
-                crowd.completeOffMeshConnection(catsCrowd, agentId);
-            } else {
-                // animate with a parabolic arc
-                const progress = anim.t / customDuration;
-
-                // linear interpolation for x and z
-                const x = anim.startPosition[0] + (anim.endPosition[0] - anim.startPosition[0]) * progress;
-                const z = anim.startPosition[2] + (anim.endPosition[2] - anim.startPosition[2]) * progress;
-
-                // parabolic arc for y (creates a jump effect)
-                const startY = anim.startPosition[1];
-                const endY = anim.endPosition[1];
-                const arcHeight = 1.0; // height of the arc
-
-                // parabola: y = -4h * (p - 0.5)^2 + h where h is max height above start
-                const parabola = -4 * arcHeight * (progress - 0.5) ** 2 + arcHeight;
-                const y = startY + (endY - startY) * progress + parabola;
-
-                vec3.set(agent.position, x, y, z);
-            }
+      if (nearest) {
+        const exists = this.edges.some(e => 
+          (e.from === current.id && e.to === nearest!.id) || (e.from === nearest!.id && e.to === current.id)
+        );
+        if (!exists) {
+          this.edges.push({
+            id: `edge_${Date.now()}_${this.edges.length}`,
+            from: current.id,
+            to: nearest.id,
+            distance: Math.round(minDistance * 100) / 100,
+            walkable: true,
+            transitionType: this.edgeType
+          });
+          addedEdgesCount++;
         }
+        current = nearest;
+        unvisited.splice(unvisited.indexOf(current), 1);
+      } else {
+        break;
+      }
     }
 
-    const agentIds = Object.keys(catsCrowd.agents);
+    this.updateGraphVisualization();
+    saveGraphToFirestore(this.currentSiteId, this.nodes, this.edges);
+    alert(`⚡ Successfully chained all ${this.nodes.length} nodes into a continuous corridor path (${this.edges.length} total route connections)!`);
+  }
 
-    for (let i = 0; i < agentIds.length; i++) {
-        const agentId = agentIds[i];
-        const agent = catsCrowd.agents[agentId];
-        if (agentVisuals[agentId]) {
-            updateAgentVisuals(agentId, agent, agentVisuals[agentId], clampedDeltaTime);
-            updateEmotionSprite(agentVisuals[agentId], agentCatState[agentId], time);
-        }
-    }
-
-    // spawning cats from spinning cats
-    const SPIN_SPAWN_DURATION = 3_000;
-    for (const agentId of agentIds) {
-        const visuals = agentVisuals[agentId];
-        const agent = catsCrowd.agents[agentId];
-        const catState = agentCatState[agentId];
-        if (!visuals || !agent || !catState) continue;
-
-        const isSpinning = catState.state === CatState.SPINNING;
-
-        if (isSpinning) {
-            // start tracking spin time if not already
-            if (visuals.spinStartTimeForSpawn === null) {
-                visuals.spinStartTimeForSpawn = time;
-            } else {
-                // check if spin duration exceeded
-                const spinDuration = time - visuals.spinStartTimeForSpawn;
-                if (spinDuration >= SPIN_SPAWN_DURATION) {
-                    // spawn new cat at this cat's position
-                    spawnCat([...agent.position] as Vec3);
-                    // reset timer to allow spawning again after another 3 seconds
-                    visuals.spinStartTimeForSpawn = time;
-                }
-            }
-        } else {
-            // not spinning - reset timer
-            visuals.spinStartTimeForSpawn = null;
-        }
-    }
-
-    // animate tape meshes with slight rotation
-    const rotationSpeed = 0.5; // radians per second
-    for (let i = 0; i < tapeMeshes.length; i++) {
-        tapeMeshes[i].rotation.y += rotationSpeed * clampedDeltaTime;
-    }
-
-    renderer.render(scene, camera);
+  private updateDestinationsList() {
+    const list = document.getElementById('destinations-list');
+    if (!list) return;
+    list.innerHTML = '';
+    this.destinations.forEach(d => {
+      const li = document.createElement('li');
+      li.className = 'item-card';
+      li.innerHTML = `<span><strong>${d.name}</strong> (${d.category})</span><span style="color:#38bdf8;">Node: ${d.navigationNodeId}</span>`;
+      list.appendChild(li);
+    });
+  }
 }
 
-update();
+// Launch Admin App when DOM Ready
+window.addEventListener('DOMContentLoaded', () => {
+  new PathLumeAdminApp();
+});

@@ -1,0 +1,411 @@
+{
+  "siteId": "demo_site",
+  "name": "Demo Indoor Site",
+  "type": "demo",
+  "description": "Universal indoor navigation demo with multi-building & multi-floor support",
+  "status": "active",
+  "version": 12,
+  "qrUrl": "https://pathlume.app/s/demo_site",
+  "buildings": [
+    {
+      "buildingId": "building_a",
+      "name": "Building A (Main Hub)",
+      "floors": [
+        {
+          "floorId": "floor_0",
+          "name": "Ground Floor",
+          "floorNumber": 0,
+          "modelUrl": "/sample.glb"
+        },
+        {
+          "floorId": "floor_1",
+          "name": "First Floor",
+          "floorNumber": 1,
+          "modelUrl": "/sample.glb"
+        }
+      ]
+    },
+    {
+      "buildingId": "building_b",
+      "name": "Building B (Annex)",
+      "floors": [
+        {
+          "floorId": "floor_0",
+          "name": "Ground Floor",
+          "floorNumber": 0,
+          "modelUrl": "/sample.glb"
+        }
+      ]
+    }
+  ],
+  "destinations": [
+    {
+      "id": "reception",
+      "name": "Reception",
+      "type": "Reception",
+      "buildingId": "building_a",
+      "floorId": "floor_0",
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 3.5
+      },
+      "navigationNodeId": "lobby_center"
+    },
+    {
+      "id": "room_101",
+      "name": "Room 101",
+      "type": "Room",
+      "buildingId": "building_a",
+      "floorId": "floor_0",
+      "position": {
+        "x": -1.8,
+        "y": 0,
+        "z": 6
+      },
+      "navigationNodeId": "room_101"
+    },
+    {
+      "id": "room_102",
+      "name": "Room 102",
+      "type": "Room",
+      "buildingId": "building_a",
+      "floorId": "floor_0",
+      "position": {
+        "x": -1.8,
+        "y": 0,
+        "z": -1
+      },
+      "navigationNodeId": "room_102"
+    },
+    {
+      "id": "library",
+      "name": "Library",
+      "type": "Library",
+      "buildingId": "building_a",
+      "floorId": "floor_1",
+      "position": {
+        "x": 1.8,
+        "y": 0,
+        "z": -1
+      },
+      "navigationNodeId": "room_104"
+    },
+    {
+      "id": "room_201",
+      "name": "Room 201 (Executive)",
+      "type": "Office",
+      "buildingId": "building_b",
+      "floorId": "floor_0",
+      "position": {
+        "x": 1.8,
+        "y": 0,
+        "z": 6
+      },
+      "navigationNodeId": "room_103"
+    },
+    {
+      "id": "cafeteria",
+      "name": "Cafeteria",
+      "type": "Cafeteria",
+      "buildingId": "building_b",
+      "floorId": "floor_0",
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": -7
+      },
+      "navigationNodeId": "room_105"
+    }
+  ],
+  "navigationGraph": {
+    "nodes": [
+      {
+        "id": "entrance_main",
+        "name": "Main Entrance",
+        "type": "entrance",
+        "floor": 1,
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 7
+        }
+      },
+      {
+        "id": "lobby_center",
+        "name": "Lobby Central Hub",
+        "type": "intersection",
+        "floor": 1,
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 3.5
+        }
+      },
+      {
+        "id": "corridor_west_01",
+        "name": "West Corridor 1",
+        "type": "corridor",
+        "floor": 1,
+        "position": {
+          "x": -1.2,
+          "y": 0,
+          "z": 3.5
+        }
+      },
+      {
+        "id": "corridor_west_02",
+        "name": "West Corridor 2",
+        "type": "corridor",
+        "floor": 1,
+        "position": {
+          "x": -1.8,
+          "y": 0,
+          "z": 1.5
+        }
+      },
+      {
+        "id": "room_101",
+        "name": "Room 101 (Conference A)",
+        "type": "room",
+        "floor": 1,
+        "position": {
+          "x": -1.8,
+          "y": 0,
+          "z": 6
+        }
+      },
+      {
+        "id": "room_102",
+        "name": "Room 102 (Lab)",
+        "type": "room",
+        "floor": 1,
+        "position": {
+          "x": -1.8,
+          "y": 0,
+          "z": -1
+        }
+      },
+      {
+        "id": "corridor_east_01",
+        "name": "East Corridor 1",
+        "type": "corridor",
+        "floor": 1,
+        "position": {
+          "x": 1.2,
+          "y": 0,
+          "z": 3.5
+        }
+      },
+      {
+        "id": "corridor_east_02",
+        "name": "East Corridor 2",
+        "type": "corridor",
+        "floor": 1,
+        "position": {
+          "x": 1.8,
+          "y": 0,
+          "z": 1.5
+        }
+      },
+      {
+        "id": "room_103",
+        "name": "Room 103 (Office B)",
+        "type": "room",
+        "floor": 1,
+        "position": {
+          "x": 1.8,
+          "y": 0,
+          "z": 6
+        }
+      },
+      {
+        "id": "room_104",
+        "name": "Room 104 (Auditorium)",
+        "type": "room",
+        "floor": 1,
+        "position": {
+          "x": 1.8,
+          "y": 0,
+          "z": -1
+        }
+      },
+      {
+        "id": "junction_north",
+        "name": "North Junction",
+        "type": "intersection",
+        "floor": 1,
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": -2
+        }
+      },
+      {
+        "id": "stairs_floor1",
+        "name": "Stairwell Floor 1",
+        "type": "stairs",
+        "floor": 1,
+        "position": {
+          "x": -1.2,
+          "y": 0,
+          "z": -3.5
+        }
+      },
+      {
+        "id": "elevator_floor1",
+        "name": "Elevator Floor 1",
+        "type": "elevator",
+        "floor": 1,
+        "position": {
+          "x": 1.2,
+          "y": 0,
+          "z": -3.5
+        }
+      },
+      {
+        "id": "corridor_north_01",
+        "name": "North Corridor",
+        "type": "corridor",
+        "floor": 1,
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": -5
+        }
+      },
+      {
+        "id": "room_105",
+        "name": "Room 105 (Cafeteria)",
+        "type": "room",
+        "floor": 1,
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": -7
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "entrance_main",
+        "to": "lobby_center",
+        "walkable": true,
+        "bidirectional": true
+      },
+      {
+        "from": "lobby_center",
+        "to": "corridor_west_01",
+        "walkable": true,
+        "bidirectional": true
+      },
+      {
+        "from": "lobby_center",
+        "to": "corridor_east_01",
+        "walkable": true,
+        "bidirectional": true
+      },
+      {
+        "from": "lobby_center",
+        "to": "junction_north",
+        "walkable": true,
+        "bidirectional": true
+      },
+      {
+        "from": "corridor_west_01",
+        "to": "corridor_west_02",
+        "walkable": true,
+        "bidirectional": true
+      },
+      {
+        "from": "corridor_west_02",
+        "to": "room_101",
+        "walkable": true,
+        "bidirectional": true
+      },
+      {
+        "from": "corridor_west_02",
+        "to": "room_102",
+        "walkable": true,
+        "bidirectional": true
+      },
+      {
+        "from": "corridor_east_01",
+        "to": "corridor_east_02",
+        "walkable": true,
+        "bidirectional": true
+      },
+      {
+        "from": "corridor_east_02",
+        "to": "room_103",
+        "walkable": true,
+        "bidirectional": true
+      },
+      {
+        "from": "corridor_east_02",
+        "to": "room_104",
+        "walkable": true,
+        "bidirectional": true
+      },
+      {
+        "from": "junction_north",
+        "to": "stairs_floor1",
+        "walkable": true,
+        "bidirectional": true
+      },
+      {
+        "from": "junction_north",
+        "to": "elevator_floor1",
+        "walkable": true,
+        "bidirectional": true
+      },
+      {
+        "from": "junction_north",
+        "to": "corridor_north_01",
+        "walkable": true,
+        "bidirectional": true
+      },
+      {
+        "from": "corridor_north_01",
+        "to": "room_105",
+        "walkable": true,
+        "bidirectional": true
+      }
+    ]
+  },
+  "vps": {
+    "siteId": "demo_site",
+    "provider": "mock",
+    "vpsMapId": "vps_demo_site",
+    "transformConfig": {
+      "translation": {
+        "x": 0,
+        "y": -1.9,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": 1
+    }
+  },
+  "coordinateSystem": {
+    "canonicalUnit": "meters",
+    "transformConfig": {
+      "translation": {
+        "x": 0,
+        "y": -1.9,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": 1
+    }
+  },
+  "publishedAt": 1787240281221
+}

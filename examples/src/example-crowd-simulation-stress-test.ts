@@ -72,7 +72,7 @@ const orbitControls = new OrbitControls(camera, renderer.domElement);
 orbitControls.enableDamping = true;
 
 /* load level model */
-const levelModel = await loadGLTF('./models/crowd-simulation-stress-test.glb');
+const levelModel = await loadGLTF('./models/sample.glb');
 scene.add(levelModel.scene);
 
 

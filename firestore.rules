@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Auxiliary helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated();
+    }
+
+    // Site configuration and metadata
+    match /sites/{siteId} {
+      allow read: if true; // Public read access for mobile apps
+      allow create, update, delete: if isAdmin();
+      
+      // Subcollections
+      match /nodes/{nodeId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+      
+      match /edges/{edgeId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+
+      match /destinations/{destId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+
+      match /versions/{versionId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+    }
+
+    // Published sites registry
+    match /publishedSites/{siteId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

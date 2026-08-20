@@ -126,48 +126,72 @@ private fun CameraXView(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    var isScanned by remember { mutableStateOf(false) }
+    val hasScanned = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
 
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
+    val scanner = remember {
+        val options = BarcodeScannerOptions.Builder()
+            .setBarcodeFormats(Barcode.FORMAT_QR_CODE, Barcode.FORMAT_ALL_FORMATS)
+            .build()
+        BarcodeScanning.getClient(options)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                if (cameraProviderFuture.isDone) {
+                    cameraProviderFuture.get().unbindAll()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            try {
+                analysisExecutor.shutdown()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            try {
+                scanner.close()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 
     AndroidView(
         factory = { ctx ->
             val previewView = PreviewView(ctx)
 
             cameraProviderFuture.addListener({
-                val cameraProvider = cameraProviderFuture.get()
+                try {
+                    val cameraProvider = cameraProviderFuture.get()
 
-                val preview = Preview.Builder().build().also {
-                    it.setSurfaceProvider(previewView.surfaceProvider)
-                }
+                    val preview = Preview.Builder().build().also {
+                        it.setSurfaceProvider(previewView.surfaceProvider)
+                    }
 
-                val options = BarcodeScannerOptions.Builder()
-                    .setBarcodeFormats(Barcode.FORMAT_QR_CODE, Barcode.FORMAT_ALL_FORMATS)
-                    .build()
-                val scanner = BarcodeScanning.getClient(options)
+                    val imageAnalysis = ImageAnalysis.Builder()
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .build()
 
-                val imageAnalysis = ImageAnalysis.Builder()
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .build()
-
-                imageAnalysis.setAnalyzer(analysisExecutor) { imageProxy ->
-                    processImageProxy(scanner, imageProxy) { rawBarcodeValue ->
-                        if (!isScanned) {
-                            val payload = QRPayloadParser.parse(rawBarcodeValue)
-                            if (payload != null && payload.siteId.isNotEmpty()) {
-                                isScanned = true
-                                previewView.post {
-                                    onSiteScanned(payload.siteId)
+                    imageAnalysis.setAnalyzer(analysisExecutor) { imageProxy ->
+                        processImageProxy(scanner, imageProxy) { rawBarcodeValue ->
+                            if (hasScanned.compareAndSet(false, true)) {
+                                val payload = QRPayloadParser.parse(rawBarcodeValue)
+                                if (payload != null && payload.siteId.isNotEmpty()) {
+                                    previewView.post {
+                                        onSiteScanned(payload.siteId)
+                                    }
+                                } else {
+                                    hasScanned.set(false)
                                 }
                             }
                         }
                     }
-                }
 
-                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                    val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
-                try {
                     cameraProvider.unbindAll()
                     cameraProvider.bindToLifecycle(
                         lifecycleOwner,
@@ -198,9 +222,9 @@ private fun processImageProxy(
         scanner.process(image)
             .addOnSuccessListener { barcodes ->
                 for (barcode in barcodes) {
-                    val rawValue = barcode.rawValue
+                    val rawValue = barcode.rawValue ?: barcode.displayValue ?: barcode.url?.url
                     if (!rawValue.isNull_or_empty()) {
-                        onBarcodeFound(rawValue)
+                        onBarcodeFound(rawValue!!)
                         break
                     }
                 }
@@ -288,7 +312,7 @@ private fun ScannerOverlay(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 60.dp),
+                .padding(bottom = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Surface(

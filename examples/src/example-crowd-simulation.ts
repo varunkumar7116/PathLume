@@ -135,7 +135,7 @@ orbitControls.mouseButtons = {
 };
 
 /* load level model */
-const levelModel = await loadGLTF('./models/nav-test.glb');
+const levelModel = await loadGLTF('./models/sample.glb');
 scene.add(levelModel.scene);
 
 /* generate navmesh */

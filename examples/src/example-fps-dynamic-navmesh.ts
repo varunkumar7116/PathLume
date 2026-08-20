@@ -367,7 +367,7 @@ renderer.domElement.addEventListener('pointerdown', onPointerDown);
 renderer.domElement.addEventListener('pointerup', onPointerUp);
 
 // load level model
-const levelModel = await loadGLTF('./models/lowpoly__fps__tdm__game__map_by_resoforge.glb');
+const levelModel = await loadGLTF('./models/sample.glb');
 scene.add(levelModel.scene);
 
 /* get walkable level geometry */

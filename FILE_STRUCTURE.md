@@ -36,26 +36,8 @@ navcat/
 +-- examples/
 |   +-- public/
 |   |   +-- models/
-|   |   |   +-- bridges.blend
-|   |   |   +-- bridges.glb
-|   |   |   +-- cat.gltf
-|   |   |   +-- cat.md
-|   |   |   +-- character.glb
-|   |   |   +-- crowd-simulation-stress-test.blend
-|   |   |   +-- crowd-simulation-stress-test.blend1
-|   |   |   +-- crowd-simulation-stress-test.glb
-|   |   |   +-- doors-and-keys.blend
-|   |   |   +-- doors-and-keys.glb
-|   |   |   +-- doors-and-keys.md
-|   |   |   +-- dungeon.gltf
-|   |   |   +-- game-level.blend
-|   |   |   +-- game-level.glb
-|   |   |   +-- lowpoly__fps__tdm__game__map_by_resoforge.blend
-|   |   |   +-- lowpoly__fps__tdm__game__map_by_resoforge.glb
-|   |   |   +-- lowpoly__fps__tdm__game__map_by_resoforge.md
-|   |   |   +-- nav-test.glb
-|   |   |   +-- proto-level.glb
-|   |   |   +-- tower-big.glb
+|   |   |   +-- sample.glb
+|   |   |   +-- sample1.glb
 |   |   +-- screenshots/
 |   |   |   +-- example-area-costs.png
 |   |   |   +-- example-area-filters.png

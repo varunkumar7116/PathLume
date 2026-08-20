@@ -115,7 +115,7 @@ const orbitControls = new OrbitControls(camera, renderer.domElement);
 orbitControls.enableDamping = true;
 
 // load level model
-const levelModel = await loadGLTF('./models/nav-test.glb');
+const levelModel = await loadGLTF('./models/sample.glb');
 scene.add(levelModel.scene);
 
 /* get walkable level geometry */

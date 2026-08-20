@@ -62,20 +62,20 @@ data class ModelReferenceData(
 
 interface PathLumeApiService {
     @GET("api/sites/{siteId}")
-    async fun getSiteConfig(@Path("siteId") siteId: String): Response<Site>
+    suspend fun getSiteConfig(@Path("siteId") siteId: String): Response<Site>
 
     @GET("api/sites/{siteId}/destinations")
-    async fun getDestinations(@Path("siteId") siteId: String): Response<List<Destination>>
+    suspend fun getDestinations(@Path("siteId") siteId: String): Response<List<Destination>>
 
     @GET("api/sites/{siteId}/navigation")
-    async fun getNavigationGraph(@Path("siteId") siteId: String): Response<NavigationGraphData>
+    suspend fun getNavigationGraph(@Path("siteId") siteId: String): Response<NavigationGraphData>
 
     @GET("api/sites/{siteId}/models")
-    async fun getModelReferences(@Path("siteId") siteId: String): Response<List<ModelReferenceData>>
+    suspend fun getModelReferences(@Path("siteId") siteId: String): Response<List<ModelReferenceData>>
 
     @GET("api/sites/{siteId}/vps/config")
-    async fun getVPSConfig(@Path("siteId") siteId: String): Response<VPSConfiguration>
+    suspend fun getVPSConfig(@Path("siteId") siteId: String): Response<VPSConfiguration>
 
     @POST("api/vps/localize")
-    async fun localizeFrame(@Body request: LocalizeRequest): Response<LocalizeResponse>
+    suspend fun localizeFrame(@Body request: LocalizeRequest): Response<LocalizeResponse>
 }

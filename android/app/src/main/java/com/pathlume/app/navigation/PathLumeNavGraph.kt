@@ -139,17 +139,18 @@ fun PathLumeNavGraph(
         ) { backStackEntry ->
             val siteId = backStackEntry.arguments?.getString("siteId") ?: "demo_site"
             val destId = backStackEntry.arguments?.getString("destinationId") ?: "d1"
-            val sampleDestination = Destination(
-                id = destId,
-                name = "Main Library & Research Center",
-                buildingId = "b1",
-                floorId = "floor_1",
-                position = Vector3D(10f, 0f, 5f),
-                category = "Academic"
+            
+            val destinationMap = mapOf(
+                "d1" to Destination("d1", "Main Library & Research Center", "b1", "floor_1", Vector3D(10f, 0f, 5f), "Academic"),
+                "d2" to Destination("d2", "Executive Conference Room 201", "b1", "floor_1", Vector3D(15f, 0f, 12f), "Office"),
+                "d3" to Destination("d3", "Student Reception & Help Desk", "b1", "floor_0", Vector3D(2f, 0f, 2f), "Service"),
+                "d4" to Destination("d4", "Central Cafeteria & Lounge", "b1", "floor_0", Vector3D(-8f, 0f, 6f), "Dining"),
+                "d5" to Destination("d5", "Innovation & Robotics Lab", "b2", "floor_0", Vector3D(-12f, 0f, -10f), "Lab")
             )
+            val destination = destinationMap[destId] ?: Destination(destId, "Destination ($destId)", "b1", "floor_0", Vector3D(5f, 0f, 5f), "General")
 
             DestinationDetailsScreen(
-                destination = sampleDestination,
+                destination = destination,
                 onStartNavigation = {
                     navController.navigate(Screen.ARNavigation.createRoute(siteId, destId))
                 },
@@ -168,19 +169,20 @@ fun PathLumeNavGraph(
             )
         ) { backStackEntry ->
             val destId = backStackEntry.arguments?.getString("destinationId") ?: "d1"
-            val sampleDestination = Destination(
-                id = destId,
-                name = "Main Library & Research Center",
-                buildingId = "b1",
-                floorId = "floor_1",
-                position = Vector3D(10f, 0f, 5f),
-                category = "Academic"
+
+            val destinationMap = mapOf(
+                "d1" to Destination("d1", "Main Library & Research Center", "b1", "floor_1", Vector3D(10f, 0f, 5f), "Academic"),
+                "d2" to Destination("d2", "Executive Conference Room 201", "b1", "floor_1", Vector3D(15f, 0f, 12f), "Office"),
+                "d3" to Destination("d3", "Student Reception & Help Desk", "b1", "floor_0", Vector3D(2f, 0f, 2f), "Service"),
+                "d4" to Destination("d4", "Central Cafeteria & Lounge", "b1", "floor_0", Vector3D(-8f, 0f, 6f), "Dining"),
+                "d5" to Destination("d5", "Innovation & Robotics Lab", "b2", "floor_0", Vector3D(-12f, 0f, -10f), "Lab")
             )
+            val destination = destinationMap[destId] ?: Destination(destId, "Destination ($destId)", "b1", "floor_0", Vector3D(5f, 0f, 5f), "General")
 
             ARNavigationScreen(
-                destination = sampleDestination,
+                destination = destination,
                 onArrived = {
-                    navController.navigate(Screen.Arrival.createRoute(sampleDestination.name)) {
+                    navController.navigate(Screen.Arrival.createRoute(destination.name)) {
                         popUpTo(Screen.ARNavigation.route) { inclusive = true }
                     }
                 },

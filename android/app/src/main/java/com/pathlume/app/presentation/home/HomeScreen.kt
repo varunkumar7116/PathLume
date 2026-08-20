@@ -170,6 +170,45 @@ fun HomeScreen(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
                         .border(1.dp, BorderDark, RoundedCornerShape(14.dp))
+                        .clickable { onSiteSelected("sample1") },
+                    colors = CardDefaults.cardColors(containerColor = CardDark)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "Photogrammetry Scan (sample1.glb)",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = TextMain
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "siteId: sample1 • 3D GLB Model",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = AccentGreen
+                            )
+                        }
+
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Load Site",
+                            tint = AccentGreen
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .border(1.dp, BorderDark, RoundedCornerShape(14.dp))
                         .clickable { onSiteSelected("demo_site") },
                     colors = CardDefaults.cardColors(containerColor = CardDark)
                 ) {
