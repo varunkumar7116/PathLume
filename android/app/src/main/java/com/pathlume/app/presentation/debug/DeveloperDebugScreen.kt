@@ -113,7 +113,7 @@ fun DeveloperDebugScreen(
                             Text("Samples: ${result.sampleCount} in %.1fs".format(result.durationSeconds), color = TextSub, fontSize = 11.sp)
                             Text("Mean Position: (%.3fm, %.3fm, %.3fm)".format(result.meanPosition.x, result.meanPosition.y, result.meanPosition.z), color = TextMain, fontSize = 11.sp)
                             Text("Std Dev (X,Y,Z): (%.4fm, %.4fm, %.4fm)".format(result.stdDevPosition.x, result.stdDevPosition.y, result.stdDevPosition.z), color = TextMain, fontSize = 11.sp)
-                            Text("Max Displacement: %.3f meters".format(result.maxDisplacementMeters), color = SkyBlue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Max Displacement: %.3f meters".format(result.max3DDisplacementMeters), color = SkyBlue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

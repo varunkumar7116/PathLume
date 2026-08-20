@@ -240,6 +240,45 @@ fun HomeScreen(
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .border(1.dp, SkyBlue, RoundedCornerShape(14.dp))
+                        .clickable { onSiteSelected("controlled_test_site") },
+                    colors = CardDefaults.cardColors(containerColor = CardDark)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "Controlled Calibration Site",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = TextMain
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "siteId: controlled_test_site • Standardized Field Test",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = SkyBlue
+                            )
+                        }
+
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Load Site",
+                            tint = SkyBlue
+                        )
+                    }
+                }
             }
 
             // Footer Manual Input Button

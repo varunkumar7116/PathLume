@@ -24,4 +24,5 @@ sealed class Screen(val route: String) {
     }
     object Settings : Screen("settings")
     object DeveloperDebug : Screen("debug")
+    object FieldTest : Screen("field_test")
 }
