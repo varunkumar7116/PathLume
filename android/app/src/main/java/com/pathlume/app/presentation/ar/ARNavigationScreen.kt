@@ -339,12 +339,17 @@ fun ARNavigationScreen(
                                 Text("SYSTEM DIAGNOSTICS", color = TextMain, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                             Text(
-                                text = "ARCore: ${arStatus.name}",
+                                text = "ARCore: ${arStatus.name} • VPS: UNAVAILABLE",
                                 color = if (arStatus == ARCoreStatus.TRACKING) AccentGreen else SkyBlue,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Text("Pose Fusion: ACTIVE • Frame: SITE WORLD (+Y Up, -Z North)", color = SkyBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("Published Site: controlled_test_site (Manifest v1.0)", color = TextSub, fontSize = 10.sp)
 
                         Spacer(modifier = Modifier.height(6.dp))
 
