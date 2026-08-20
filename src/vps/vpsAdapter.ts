@@ -1,104 +1,112 @@
+import { Vector3D, VPSPose, VPSStatus } from './vpsTypes';
 import { VPSClient } from './vpsClient';
 
-import {
-    VPSPose,
-    VPSStatus,
-    VPSTransformConfig,
-} from './vpsTypes';
+export interface PathLumeVpsContract {
+    siteId: string;
+    mapId: string;
+    timestamp: number;
+    position: Vector3D;
+    rotation: { qx: number; qy: number; qz: number; qw: number };
+    confidence: number;
+    provider: string;
+    processingTimeMs: number;
+}
 
-import { DEFAULT_TRANSFORM_CONFIG, vpsToWorldPose } from './vpsTransform';
-
-export type VPSStatusCallback = (status: VPSStatus, pose: VPSPose | null, latencyMs: number) => void;
+export type VpsStatusCallback = (status: VPSStatus, pose?: VPSPose | null, latencyMs?: number) => void;
 
 export class VPSAdapter {
     private client: VPSClient;
-    private status: VPSStatus = 'VPS_SEARCHING';
-    private lastValidPose: VPSPose | null = null;
-    private lastPoseTimestamp = 0;
-    private statusSubscribers: Set<VPSStatusCallback> = new Set();
-    private transformConfig: VPSTransformConfig = DEFAULT_TRANSFORM_CONFIG;
-    private lostTimeoutMs = 8000;
-    private confidenceThresholdMeters = 2.0;
+    private statusListeners: Array<VpsStatusCallback> = [];
 
     constructor(client: VPSClient) {
         this.client = client;
     }
 
-    public setTransformConfig(config: VPSTransformConfig): void {
-        this.transformConfig = config;
+    public onStatusUpdate(callback: VpsStatusCallback): void {
+        this.statusListeners.push(callback);
     }
 
-    public getStatus(): VPSStatus {
-        return this.status;
-    }
+    public async localize(frame: string, mapId = 'building_01'): Promise<VPSPose | null> {
+        this.statusListeners.forEach(cb => cb('VPS_SEARCHING'));
+        const response = await this.client.localizeFrame(frame, mapId);
 
-    public getLastValidPose(): VPSPose | null {
-        return this.lastValidPose;
-    }
-
-    public onStatusUpdate(callback: VPSStatusCallback): () => void {
-        this.statusSubscribers.add(callback);
-        callback(this.status, this.lastValidPose, this.client.getLastLatencyMs());
-        return () => {
-            this.statusSubscribers.delete(callback);
-        };
+        if (response.localized && response.position && response.rotation) {
+            const pose: VPSPose = {
+                position: response.position,
+                rotation: response.rotation,
+                heading: response.heading || 0,
+                floor: response.floor || 1,
+                accuracy: response.accuracy || 1.0,
+                timestamp: Date.now()
+            };
+            this.statusListeners.forEach(cb => cb('VPS_LOCALIZED', pose, this.client.getLastLatencyMs()));
+            return pose;
+        } else {
+            this.statusListeners.forEach(cb => cb('VPS_SEARCHING', null, this.client.getLastLatencyMs()));
+            return null;
+        }
     }
 
     /**
-     * Accepts a camera image frame, calls VPS backend, validates, transforms coordinates,
-     * updates VPSStatus state, and returns standard VPSPose.
+     * Adapts raw provider responses (Immersal, Google Geospatial, etc.) into the PathLume internal VPS contract.
      */
-    public async localize(imageFrameBase64: string, mapId = 'building_01'): Promise<VPSPose | null> {
-        const response = await this.client.localizeFrame(imageFrameBase64, mapId);
-
-        if (!response || !response.localized || !response.position) {
-            this.handleFailure(response?.message || 'Unlocalized frame');
-            return this.lastValidPose; // Keep last known pose during temporary failure
+    public static adaptProviderResponse(
+        rawResponse: any,
+        providerName: string,
+        siteId: string,
+        mapId: string,
+        processingTimeMs: number
+    ): PathLumeVpsContract | null {
+        if (!rawResponse || typeof rawResponse !== 'object') {
+            return null;
         }
 
-        const rawPose: VPSPose = {
-            position: response.position,
-            rotation: response.rotation || { x: 0, y: 0, z: 0, w: 1 },
-            heading: response.heading ?? 0,
-            floor: response.floor ?? 1,
-            accuracy: response.accuracy ?? 0.5,
-            timestamp: Date.now(),
-        };
+        // 1. Immersal Format Adapter
+        if (providerName.toLowerCase().includes('immersal') || rawResponse.px !== undefined) {
+            const posX = Number(rawResponse.px ?? rawResponse.position?.x ?? 0);
+            const posY = Number(rawResponse.py ?? rawResponse.position?.y ?? 0);
+            const posZ = Number(rawResponse.pz ?? rawResponse.position?.z ?? 0);
+            const qx = Number(rawResponse.r00 ?? rawResponse.rotation?.qx ?? 0);
+            const qy = Number(rawResponse.r01 ?? rawResponse.rotation?.qy ?? 0);
+            const qz = Number(rawResponse.r02 ?? rawResponse.rotation?.qz ?? 0);
+            const qw = Number(rawResponse.r10 ?? rawResponse.rotation?.qw ?? 1);
+            const confidence = Number(rawResponse.confidence ?? (rawResponse.success ? 0.88 : 0.0));
 
-        // Convert raw VPS pose to GLB world coordinates
-        const transformedPose = vpsToWorldPose(rawPose, this.transformConfig);
-
-        this.lastValidPose = transformedPose;
-        this.lastPoseTimestamp = Date.now();
-
-        // Check confidence threshold
-        if (transformedPose.accuracy > this.confidenceThresholdMeters) {
-            this.setStatus('VPS_LOW_CONFIDENCE', transformedPose);
-        } else {
-            this.setStatus('VPS_LOCALIZED', transformedPose);
+            return {
+                siteId,
+                mapId,
+                timestamp: Date.now(),
+                position: { x: posX, y: posY, z: posZ },
+                rotation: { qx, qy, qz, qw },
+                confidence,
+                provider: 'Immersal VPS Engine',
+                processingTimeMs
+            };
         }
 
-        return transformedPose;
-    }
-
-    private handleFailure(reason: string): void {
-        const now = Date.now();
-        const timeSinceLastPose = now - this.lastPoseTimestamp;
-
-        if (this.lastValidPose && timeSinceLastPose < this.lostTimeoutMs) {
-            this.setStatus('VPS_LOST', this.lastValidPose);
-        } else if (reason.includes('Network') || reason.includes('Error')) {
-            this.setStatus('VPS_ERROR', null);
-        } else {
-            this.setStatus('VPS_SEARCHING', null);
+        // 2. Standard PathLume Contract Adapter
+        if (rawResponse.position && rawResponse.confidence !== undefined) {
+            return {
+                siteId: rawResponse.siteId || siteId,
+                mapId: rawResponse.mapId || mapId,
+                timestamp: rawResponse.timestamp || Date.now(),
+                position: {
+                    x: Number(rawResponse.position.x || 0),
+                    y: Number(rawResponse.position.y || 0),
+                    z: Number(rawResponse.position.z || 0)
+                },
+                rotation: {
+                    qx: Number(rawResponse.rotation?.qx || rawResponse.rotation?.x || 0),
+                    qy: Number(rawResponse.rotation?.qy || rawResponse.rotation?.y || 0),
+                    qz: Number(rawResponse.rotation?.qz || rawResponse.rotation?.z || 0),
+                    qw: Number(rawResponse.rotation?.qw || rawResponse.rotation?.w || 1)
+                },
+                confidence: Number(rawResponse.confidence || 0),
+                provider: providerName,
+                processingTimeMs
+            };
         }
-    }
 
-    private setStatus(newStatus: VPSStatus, pose: VPSPose | null): void {
-        this.status = newStatus;
-        const latency = this.client.getLastLatencyMs();
-        for (const sub of this.statusSubscribers) {
-            sub(newStatus, pose, latency);
-        }
+        return null;
     }
 }
