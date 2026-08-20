@@ -17,6 +17,7 @@ import com.pathlume.app.presentation.theme.*
 fun SettingsScreen(
     onOpenDiagnostics: () -> Unit,
     onOpenFieldTest: () -> Unit,
+    onOpenTestHistory: () -> Unit,
     onBackClicked: () -> Unit
 ) {
     var serverUrl by remember { mutableStateOf("https://pathlume.app") }
@@ -87,6 +88,19 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             Button(
+                onClick = onOpenTestHistory,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = CardDark)
+            ) {
+                Text("View Test History & Reports", color = SkyBlue, fontWeight = FontWeight.SemiBold)
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Button(
                 onClick = onOpenDiagnostics,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -94,7 +108,7 @@ fun SettingsScreen(
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = CardDark)
             ) {
-                Text("Open Developer Diagnostics Telemetry", color = SkyBlue, fontWeight = FontWeight.SemiBold)
+                Text("Open Developer Diagnostics Telemetry", color = TextSub, fontSize = 13.sp)
             }
         }
     }

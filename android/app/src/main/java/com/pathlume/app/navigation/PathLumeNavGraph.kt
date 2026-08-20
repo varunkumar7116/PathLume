@@ -219,6 +219,9 @@ fun PathLumeNavGraph(
                 onOpenFieldTest = {
                     navController.navigate(Screen.FieldTest.route)
                 },
+                onOpenTestHistory = {
+                    navController.navigate(Screen.TestHistory.route)
+                },
                 onBackClicked = {
                     navController.popBackStack()
                 }
@@ -237,6 +240,15 @@ fun PathLumeNavGraph(
         // 12. Dedicated Field Test Mode
         composable(Screen.FieldTest.route) {
             com.pathlume.app.presentation.testing.FieldTestScreen(
+                onBackClicked = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        // 13. Test History & Reports
+        composable(Screen.TestHistory.route) {
+            com.pathlume.app.presentation.testing.TestHistoryScreen(
                 onBackClicked = {
                     navController.popBackStack()
                 }
