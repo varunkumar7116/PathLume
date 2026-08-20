@@ -1,6 +1,4 @@
 import http from 'http';
-import fs from 'fs';
-import path from 'path';
 import { SiteRepository } from '../site/siteRepository';
 import { VPSClient } from '../vps/vpsClient';
 import { VPSBackendResponse } from '../vps/vpsTypes';
@@ -20,7 +18,7 @@ export class PathLumeApiServer {
 
     public start(): Promise<void> {
         return new Promise((resolve) => {
-            this.server = http.createServer(async (req, res) => {
+            this.server = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
                 // CORS Headers
                 res.setHeader('Access-Control-Allow-Origin', '*');
                 res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -133,7 +131,7 @@ export class PathLumeApiServer {
                     // 7. ADMIN: POST /api/admin/sites (Create or update site)
                     if ((req.method === 'POST' || req.method === 'PUT') && pathname === '/api/admin/sites') {
                         let body = '';
-                        req.on('data', chunk => { body += chunk; });
+                        req.on('data', (chunk: Buffer | string) => { body += chunk; });
                         req.on('end', () => {
                             try {
                                 const siteData: SiteConfig = JSON.parse(body || '{}');
@@ -186,7 +184,7 @@ export class PathLumeApiServer {
                     // 9. POST /api/vps/localize
                     if (req.method === 'POST' && pathname === '/api/vps/localize') {
                         let body = '';
-                        req.on('data', chunk => { body += chunk; });
+                        req.on('data', (chunk: Buffer | string) => { body += chunk; });
                         req.on('end', async () => {
                             try {
                                 const payload = JSON.parse(body || '{}');
@@ -201,7 +199,7 @@ export class PathLumeApiServer {
 
                                 const vpsResult: VPSBackendResponse = typeof imageBase64 === 'string'
                                     ? await this.vpsClient.localizeFrame(imageBase64, siteId)
-                                    : { localized: true, position: { x: 0, y: 0, z: 0 }, orientation: { x: 0, y: 0, z: 0, w: 1 }, confidence: 0.95, floorId: 'floor_0' };
+                                    : { localized: true, position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, accuracy: 0.95, mapId: 'floor_0' };
 
                                 res.writeHead(200, { 'Content-Type': 'application/json' });
                                 res.end(JSON.stringify(vpsResult));

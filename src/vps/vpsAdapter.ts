@@ -1,7 +1,6 @@
 import { VPSClient } from './vpsClient';
 
 import {
-    VPSBackendResponse,
     VPSPose,
     VPSStatus,
     VPSTransformConfig,

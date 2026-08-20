@@ -25,6 +25,10 @@ export class ARCoreTrackingProvider {
     private isRunning = false;
     private lastFrameTime = 0;
 
+    public getLastFrameTime(): number {
+        return this.lastFrameTime;
+    }
+
     public onPoseUpdate(callback: ARCorePoseCallback): () => void {
         this.subscribers.add(callback);
         callback({ ...this.currentPose });

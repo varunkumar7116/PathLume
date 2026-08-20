@@ -9,16 +9,16 @@ export function getVPSConfig(): VPSSettings {
     
     // Safely check Vite environment variables if available
     try {
-        if (typeof import.meta !== 'undefined' && import.meta.env) {
-            if (import.meta.env.VITE_VPS_URL) {
-                serverUrl = import.meta.env.VITE_VPS_URL;
-            }
+        const meta = import.meta as Record<string, any>;
+        if (meta && meta.env && meta.env.VITE_VPS_URL) {
+            serverUrl = meta.env.VITE_VPS_URL;
         }
     } catch {
         // Fallback to default
     }
 
-    const frameRateStr = typeof process !== 'undefined' && process.env ? process.env.VPS_FRAME_RATE : '5';
+    const proc = typeof process !== 'undefined' ? process : undefined;
+    const frameRateStr = proc?.env?.VPS_FRAME_RATE;
     const frameRate = parseInt(frameRateStr || '5', 10) || 5;
 
     return {

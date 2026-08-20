@@ -1,5 +1,5 @@
 import { NavigationGraph } from './graph/navigationGraph';
-import { NavNode, Vector3D } from './graph/nodes';
+import { NavNode } from './graph/nodes';
 import { PositionProvider } from './positioning/positionProvider';
 import { DEFAULT_USER_POSITION, UserPositionState } from './positioning/userPosition';
 import { findAStarPath } from './routing/aStar';
@@ -7,7 +7,6 @@ import {
     calculateDistanceRemaining,
     checkArrival,
     checkOffRoute,
-    distance3D,
 } from './routing/routeUtils';
 
 export type NavigationStatus = 'idle' | 'navigating' | 'off-route' | 'arrived';
@@ -71,6 +70,10 @@ export class NavigationEngine {
         this.positionUnsubscribe = provider.onPositionUpdate((pos) => {
             this.updateUserPosition(pos);
         });
+    }
+
+    public getPositionProvider(): PositionProvider | null {
+        return this.positionProvider;
     }
 
     public setStartNode(nodeOrId: NavNode | string | null): void {

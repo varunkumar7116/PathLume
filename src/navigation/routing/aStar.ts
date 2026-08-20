@@ -82,7 +82,6 @@ export function findAStarPath(
         }
 
         openSet.delete(currentId);
-        const currentNode = graph.getNode(currentId)!;
         const currentG = gScore.get(currentId) ?? Infinity;
 
         const neighbors = graph.getNeighbors(currentId);

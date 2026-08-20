@@ -46,9 +46,13 @@ export class PoseFusion implements PositionProvider {
         });
     }
 
-    public async start(videoContainer?: HTMLElement): Promise<void> {
+    public async start(_videoContainer?: HTMLElement): Promise<void> {
         this.isRunning = true;
         this.arCoreProvider.start();
+    }
+
+    public isActive(): boolean {
+        return this.isRunning;
     }
 
     public stop(): void {
@@ -96,7 +100,7 @@ export class PoseFusion implements PositionProvider {
      * Called when a low-frequency VPS absolute pose arrives.
      * Fuses VPS pose into fusedPose with smooth drift correction.
      */
-    public applyVPSCorrection(vpsPose: VPSPose | null, vpsStatus: VPSStatus = 'VPS_LOCALIZED'): void {
+    public applyVPSCorrection(vpsPose: VPSPose | null, _vpsStatus: VPSStatus = 'VPS_LOCALIZED'): void {
         if (!vpsPose) {
             const timeSinceVPS = Date.now() - this.fusedPose.vpsLastUpdatedMs;
             if (timeSinceVPS > 10000) {

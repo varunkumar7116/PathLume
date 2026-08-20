@@ -18,7 +18,12 @@
     "baseUrl": "./",
     "rootDir": "../",
     "allowSyntheticDefaultImports": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    "paths": {
+      "navcat": ["../src/index.ts"],
+      "navcat/blocks": ["../blocks/index.ts"],
+      "navcat/three": ["../three/index.ts"]
+    }
   },
   "include": ["./src", "vite-env.d.ts"],
   "exclude": ["./dist"]

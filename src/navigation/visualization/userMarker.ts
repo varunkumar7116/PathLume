@@ -54,7 +54,7 @@ export class UserMarker {
         this.ringMesh.scale.set(scale, scale, scale);
     }
 
-    public update(deltaTime = 0.016): void {
+    public update(_deltaTime = 0.016): void {
         // Smooth lerp interpolation for marker movement
         this.markerGroup.position.lerp(this.targetPosition, 0.15);
 
