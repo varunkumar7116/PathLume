@@ -37,12 +37,14 @@ import com.pathlume.app.localization.PoseFusionManager
 import com.pathlume.app.localization.WorldCoordinateManager
 import com.pathlume.app.navigation.ArrivalDetector
 import com.pathlume.app.navigation.OffRouteDetector
+import com.pathlume.app.testing.FieldTestLogger
 
 private val NavyDark = Color(0xFF0F172A)
 private val CardDark = Color(0xFF1E293B)
 private val SkyBlue = Color(0xFF38BDF8)
 private val AccentGreen = Color(0xFF22C55E)
 private val ErrorRed = Color(0xFFEF4444)
+private val OrangeWarning = Color(0xFFF97316)
 private val TextMain = Color(0xFFF8FAFC)
 private val TextSub = Color(0xFF94A3B8)
 private val BorderDark = Color(0xFF334155)
@@ -58,6 +60,7 @@ fun ARNavigationScreen(
 
     val arSessionManager = remember { ARCoreSessionManager(context) }
     val poseFusionManager = remember { PoseFusionManager() }
+    val fieldTestLogger = remember { FieldTestLogger() }
 
     var isArSupported by remember { mutableStateOf<Boolean?>(null) }
     var showDiagnostics by remember { mutableStateOf(true) }
@@ -98,7 +101,20 @@ fun ARNavigationScreen(
         WorldCoordinateManager.distanceMeters(fusedPose.position, destination.position)
     }
 
-    // 4. Real Arrival Check (Phase 7, Phase 19)
+    // 4. Log telemetry frame
+    LaunchedEffect(fusedPose, arPose) {
+        fieldTestLogger.recordFrame(
+            arPose = arPose,
+            fusedPose = fusedPose,
+            trackingState = arStatus.name,
+            distanceToDestination = distanceToDestination,
+            distanceFromRoute = 0f,
+            destinationFloor = destinationFloorInt,
+            navigationState = "NAVIGATING"
+        )
+    }
+
+    // 5. Real Arrival Check (Phase 7, Phase 19)
     LaunchedEffect(fusedPose, destination) {
         val arrived = ArrivalDetector.hasArrived(
             userPosition = fusedPose.position,
@@ -272,7 +288,33 @@ fun ARNavigationScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // ARCORE-ONLY DEVELOPMENT MODE BANNER (Phase 16)
+            Surface(
+                color = OrangeWarning.copy(alpha = 0.2f),
+                shape = RoundedCornerShape(10.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, OrangeWarning)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = OrangeWarning, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "ARCORE-ONLY DEVELOPMENT MODE (VPS: UNAVAILABLE)",
+                        color = OrangeWarning,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             // 4. Live Diagnostic Telemetry Overlay (Phase 5, Phase 13)
             if (showDiagnostics) {
@@ -320,8 +362,6 @@ fun ARNavigationScreen(
                             fusedPose.position.z
                         )
                         Text(fusedStr, color = TextMain, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-
-                        Text("VPS: UNAVAILABLE (REAL PROVIDER CONFIGURATION REQUIRED)", color = ErrorRed, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

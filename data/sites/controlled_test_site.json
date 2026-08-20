@@ -1,0 +1,56 @@
+{
+  "siteId": "controlled_test_site",
+  "name": "Controlled Calibration & Field Test Site",
+  "type": "Physical Calibration Site",
+  "description": "Standardized test environment for physical ARCore tracking, GLB alignment, landmark calibration, and A* navigation validation.",
+  "buildings": [
+    {
+      "id": "bldg_main",
+      "name": "Main Test Hall",
+      "floors": [
+        {
+          "id": "floor_1",
+          "floorNumber": 1,
+          "name": "Ground Level Calibration Hall",
+          "modelUrl": "https://storage.googleapis.com/pathlume-sites/models/sample1.glb"
+        }
+      ]
+    }
+  ],
+  "destinations": [
+    {
+      "id": "dest_point_a",
+      "name": "Point A — North Corridor Landmark (5m)",
+      "buildingId": "bldg_main",
+      "floorId": "floor_1",
+      "position": { "x": 0.0, "y": 0.0, "z": -5.0 },
+      "category": "Landmark"
+    },
+    {
+      "id": "dest_point_b",
+      "name": "Point B — North-East Junction Landmark (10m)",
+      "buildingId": "bldg_main",
+      "floorId": "floor_1",
+      "position": { "x": 0.0, "y": 0.0, "z": -10.0 },
+      "category": "Landmark"
+    },
+    {
+      "id": "dest_point_c",
+      "name": "Point C — East Wing Destination (10m East)",
+      "buildingId": "bldg_main",
+      "floorId": "floor_1",
+      "position": { "x": 5.0, "y": 0.0, "z": -10.0 },
+      "category": "Office"
+    }
+  ],
+  "vpsConfiguration": {
+    "provider": "unconfigured",
+    "serverUrl": "https://pathlume.app/api/vps",
+    "frameRateHz": 5
+  },
+  "coordinateSystem": {
+    "translation": { "x": 0.0, "y": 0.0, "z": 0.0 },
+    "rotation": { "x": 0.0, "y": 0.0, "z": 0.0 },
+    "scale": 1.0
+  }
+}
