@@ -3,6 +3,7 @@ package com.pathlume.app.ar
 import android.content.Context
 import android.util.Log
 import com.google.ar.core.ArCoreApk
+import com.google.ar.core.Config
 import com.google.ar.core.Pose
 import com.google.ar.core.TrackingState
 
@@ -16,6 +17,8 @@ class ARCoreManager(private val context: Context) {
     val anchorManager = ARAnchorManager()
     val coordinateSystem = ARCoordinateSystem()
     val renderer = ARRenderer()
+    val augmentedImageManager = ARAugmentedImageManager()
+    val depthManager = ARDepthManager()
 
     var isARSupported: Boolean = false
         private set
@@ -44,6 +47,10 @@ class ARCoreManager(private val context: Context) {
         return try {
             if (sessionManager.arSession == null) {
                 val session = sessionManager.createSession() ?: return false
+                val config = session.config
+                augmentedImageManager.setupAugmentedImageDatabase(session, config)
+                depthManager.configureDepthMode(session, config)
+                session.configure(config)
                 renderer.setSession(session)
             }
             val resumed = sessionManager.resumeSession()
@@ -56,6 +63,8 @@ class ARCoreManager(private val context: Context) {
                     camera.trackingState,
                     anchorManager.hasActiveAnchor()
                 )
+                augmentedImageManager.processFrame(frame)
+                depthManager.processFrame(frame)
                 renderer.activeAnchors = anchorManager.getActiveAnchors()
             }
 
@@ -117,7 +126,6 @@ class ARCoreManager(private val context: Context) {
             val lastPose = latestPoseData
             Log.i(TAG, "PATHLUME_AR ANCHOR_CREATE_PRE_CHECK tracking_state=${lastPose?.trackingState ?: "UNKNOWN"}")
 
-            // Reuse existing anchor if another anchor exists within 0.05m
             val existing = anchorManager.getActiveAnchors().find { a ->
                 val p = a.pose
                 val dx = p.tx() - x
@@ -170,9 +178,11 @@ class ARCoreManager(private val context: Context) {
         val lastPose = latestPoseData ?: return null
         if (lastPose.trackingState != TrackingState.TRACKING.name) return null
 
+        val imagePose = augmentedImageManager.latestImagePoseData
+
         return mapOf(
             "poseAvailable" to true,
-            "poseSource" to "nativeArCore",
+            "poseSource" to (if (imagePose != null) "augmentedImage" to imagePose else "nativeArCore"),
             "pose" to lastPose.toMap(),
             "timestamp" to System.currentTimeMillis()
         )
@@ -191,7 +201,7 @@ class ARCoreManager(private val context: Context) {
         val config = try { session?.cameraConfig } catch (e: Exception) { null }
         val focusMode = try { session?.config?.focusMode?.name } catch (e: Exception) { "AUTO" }
 
-        return mapOf(
+        val diag = mutableMapOf<String, Any>(
             "cameraConfigResolution" to "${config?.textureSize?.width ?: 0}x${config?.textureSize?.height ?: 0}",
             "cameraConfigImageSize" to "${config?.imageSize?.width ?: 0}x${config?.imageSize?.height ?: 0}",
             "cameraConfigFps" to "${config?.fpsRange?.lower ?: 30}-${config?.fpsRange?.upper ?: 30}",
@@ -199,7 +209,12 @@ class ARCoreManager(private val context: Context) {
             "trackingState" to getTrackingState(),
             "anchorCount" to anchorManager.getActiveAnchors().size
         )
+
+        diag.putAll(depthManager.getDepthDiagnostics())
+        augmentedImageManager.latestImagePoseData?.let {
+            diag["augmentedImage"] = it
+        }
+
+        return diag
     }
 }
-
-

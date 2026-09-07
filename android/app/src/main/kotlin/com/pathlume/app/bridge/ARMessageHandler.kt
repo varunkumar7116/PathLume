@@ -15,10 +15,15 @@ class ARMessageHandler(private val arCoreManager: ARCoreManager) : EventChannel.
             if (isStreaming) {
                 val poseData = arCoreManager.getCurrentPose()
                 if (poseData != null) {
-                    val eventMap = mapOf(
+                    val eventMap = mutableMapOf<String, Any>(
                         "trackingState" to poseData.trackingState,
-                        "pose" to poseData.toMap()
+                        "pose" to poseData.toMap(),
+                        "depthSupported" to arCoreManager.depthManager.isDepthSupported,
+                        "depthAvailable" to arCoreManager.depthManager.isDepthAvailable
                     )
+                    arCoreManager.augmentedImageManager.latestImagePoseData?.let {
+                        eventMap["augmentedImage"] = it
+                    }
                     eventSink?.success(eventMap)
                 }
                 mainHandler.postDelayed(this, 100) // 10Hz Flutter UI status update stream
