@@ -236,7 +236,7 @@ class RegistrationEngine {
     if (_capturedNodes.isNotEmpty) {
       final lastNode = _capturedNodes.last;
       final dist = position.distanceTo(lastNode.position);
-      final requiredSpacing = forceAdd ? 0.05 : minNodeSpacingMeters;
+      final requiredSpacing = forceAdd ? 0.0 : minNodeSpacingMeters;
       final isAccepted = dist >= requiredSpacing;
       developer.log(
         '[PATHLUME][SPACING_CHECK] PREVIOUS_NODE_WORLD: (${lastNode.position.x.toStringAsFixed(2)}, ${lastNode.position.y.toStringAsFixed(2)}, ${lastNode.position.z.toStringAsFixed(2)}) CURRENT_CAMERA_WORLD: (${position.x.toStringAsFixed(2)}, ${position.y.toStringAsFixed(2)}, ${position.z.toStringAsFixed(2)}) DISTANCE: ${dist.toStringAsFixed(2)}m MIN_REQUIRED: ${requiredSpacing.toStringAsFixed(2)}m RESULT: ${isAccepted ? "ACCEPT" : "REJECT"}',

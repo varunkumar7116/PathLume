@@ -18,7 +18,6 @@ import '../../../services/ar_service.dart';
 import '../../../services/repositories/building_repository.dart';
 import '../../../services/simulated_ar_service.dart';
 import '../../qr/presentation/floor_qr_screen.dart';
-import 'registration_summary_screen.dart';
 
 class FloorRegistrationScreen extends StatefulWidget {
   final String buildingId;
@@ -46,6 +45,7 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
   ARTrackingState _trackingState = ARTrackingState.initializing;
   bool _isDeveloperTestMode = false;
   bool _hasCameraPermission = true;
+  bool _isDiagnosticsExpanded = false;
 
   StreamSubscription<ARTrackingState>? _trackingSub;
   StreamSubscription<ARPose>? _poseSub;
@@ -205,7 +205,7 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
               children: [
                 Icon(Icons.check_circle_rounded, color: Colors.greenAccent),
                 SizedBox(width: 8),
-                Expanded(child: Text('Registration Started! Start Origin Node Placed.')),
+                Expanded(child: Text('Start Node (Node 0) Placed! Walk & tap + ADD NODE for next points.')),
               ],
             ),
             backgroundColor: Colors.grey.shade900,
@@ -227,32 +227,27 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
     _processResult(result);
   }
 
-  void _handleMarkTurn() {
-    developer.log('[PATHLUME][ADD_NODE] MARK TURN pressed at ${_currentPose.position}');
-    _lastAction = 'MARK_TURN';
-    if (!_validateARTrackingForAction()) return;
-
-    _ensureRegistrationActive();
-
-    final result = _engine.markTurn(
-      position: _currentPose.position,
-      rotation: _currentPose.rotation,
+  void _handleReset() {
+    _arService.clearNodeAnchors();
+    _engine.initializeRegistration(
+      buildingId: widget.buildingId,
+      floorId: widget.floorId,
     );
-    _processResult(result);
-  }
-
-  void _handleMarkDoor() {
-    developer.log('[PATHLUME][ADD_NODE] MARK DOOR pressed at ${_currentPose.position}');
-    _lastAction = 'MARK_DOOR';
-    if (!_validateARTrackingForAction()) return;
-
-    _ensureRegistrationActive();
-
-    final result = _engine.markDoor(
-      position: _currentPose.position,
-      rotation: _currentPose.rotation,
-    );
-    _processResult(result);
+    _anchorCount = 0;
+    _lastAction = 'RESET';
+    _lastResult = 'SUCCESS';
+    _rejectionReason = 'NONE';
+    if (mounted) {
+      setState(() {});
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Registration Reset cleanly. Tap "+ ADD NODE" to place Node 0.'),
+          backgroundColor: Colors.grey,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Future<void> _processResult(NodeAddResult result) async {
@@ -317,206 +312,6 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
     }
   }
 
-  Future<void> _promptDestinationDialog() async {
-    if (!_validateARTrackingForAction()) return;
-
-    final nameController = TextEditingController();
-    final categoryController = TextEditingController(text: 'Room');
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Mark Destination'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Destination Name *',
-                  hintText: 'e.g. Computer Lab 1',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: categoryController,
-                decoration: const InputDecoration(
-                  labelText: 'Category',
-                  hintText: 'e.g. Lab, Office, Washroom',
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('CANCEL'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (nameController.text.trim().isNotEmpty) {
-                  Navigator.of(context).pop(true);
-                }
-              },
-              child: const Text('SAVE DESTINATION'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result == true) {
-      _ensureRegistrationActive();
-      final addResult = _engine.markDestination(
-        position: _currentPose.position,
-        rotation: _currentPose.rotation,
-        name: nameController.text.trim(),
-        category: categoryController.text.trim(),
-      );
-      _processResult(addResult);
-    }
-  }
-
-  void _showRegistrationQualityDialog() {
-    final metrics = _engine.getQualityMetrics();
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.assessment_rounded, color: AppTheme.primaryCyan),
-              SizedBox(width: 8),
-              Text('Registration Quality'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildQualityRow('Total Nodes', '${metrics.totalNodes}'),
-              _buildQualityRow('Total Edges', '${metrics.totalEdges}'),
-              _buildQualityRow('Path Distance', '${metrics.totalDistance.toStringAsFixed(1)} m'),
-              _buildQualityRow('Min Spacing', '${metrics.minSpacing.toStringAsFixed(2)} m'),
-              _buildQualityRow('Max Edge Length', '${metrics.maxEdgeLength.toStringAsFixed(2)} m'),
-              _buildQualityRow('Avg Edge Length', '${metrics.avgEdgeLength.toStringAsFixed(2)} m'),
-              _buildQualityRow('Destinations', '${metrics.destinationCount}'),
-              _buildQualityRow('Disconnected Nodes', '${metrics.disconnectedNodeCount}', isWarning: metrics.disconnectedNodeCount > 0),
-              _buildQualityRow('Tracking Interruptions', '${metrics.trackingInterruptions}', isWarning: metrics.trackingInterruptions > 0),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('BACK'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
-              onPressed: () {
-                Navigator.of(context).pop();
-                final summary = _engine.getSummary();
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => RegistrationSummaryScreen(
-                      buildingId: widget.buildingId,
-                      floorId: widget.floorId,
-                      engine: _engine,
-                      summary: summary,
-                      repository: widget.repository,
-                    ),
-                  ),
-                );
-              },
-              child: const Text('PROCEED TO FINISH'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildQualityRow(String label, String value, {bool isWarning = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 12, color: Colors.white70)),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: isWarning ? Colors.orangeAccent : Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGuidanceCard() {
-    String title = '';
-    String description = '';
-
-    if (!_hasCameraPermission && !_isDeveloperTestMode) {
-      title = 'Camera Permission Needed';
-      description = 'Grant camera permission to start floor registration.';
-    } else if (_trackingState == ARTrackingState.initializing) {
-      title = 'Tracking: INITIALIZING';
-      description = 'Move phone slowly from side to side to scan environment features.';
-    } else if (_trackingState == ARTrackingState.tracking) {
-      if (_engine.state == RegistrationState.preparing) {
-        title = 'Tracking: READY — Start Origin';
-        description = 'Stand at your floor starting point and press "+ ADD NODE" to place Node 0.';
-      } else if (_engine.state == RegistrationState.registering) {
-        title = 'Tracking: ACTIVE — ${_engine.capturedNodes.length} Node(s) Placed';
-        description = 'Walk through floor. Press "+ ADD NODE", "MARK TURN", or "MARK DOOR" at key locations.';
-      } else if (_engine.state == RegistrationState.paused) {
-        title = 'Registration PAUSED';
-        description = 'Press RESUME to continue adding nodes.';
-      } else {
-        title = 'Tracking: TRACKING';
-        description = 'Registering floor route...';
-      }
-    } else {
-      title = 'Tracking: ${_trackingState.displayName.toUpperCase()}';
-      description = 'Re-orient phone slowly or tap the refresh icon to reset AR session.';
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.cardDark.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.primaryCyan.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            description,
-            style: const TextStyle(
-              fontSize: 11,
-              color: Colors.white70,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -562,9 +357,7 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
                 children: [
                   _buildSafetyBanner(),
                   const SizedBox(height: 8),
-                  _buildGuidanceCard(),
-                  const SizedBox(height: 8),
-                  _buildDiagnosticsPanel(),
+                  _buildDiagnosticsDropdown(),
                   const Spacer(),
                   if (_isDeveloperTestMode) _buildDeveloperControls(),
                   const SizedBox(height: 12),
@@ -695,7 +488,7 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
           SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Stay aware of your surroundings while walking. Do not use the device while crossing hazardous areas or stairs.',
+              'Stay aware of your surroundings while walking. Do not use device on stairs.',
               style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
             ),
           ),
@@ -704,7 +497,7 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
     );
   }
 
-  Widget _buildDiagnosticsPanel() {
+  Widget _buildDiagnosticsDropdown() {
     final lastNodePos = _engine.capturedNodes.isNotEmpty
         ? _engine.capturedNodes.last.position
         : null;
@@ -714,81 +507,160 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
     final poseAge = _currentPose.ageMs;
     final isPoseFresh = _currentPose.isFresh();
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.cardDark.withValues(alpha: 0.9),
+    return Card(
+      color: AppTheme.cardDark.withValues(alpha: 0.92),
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.primaryCyan.withValues(alpha: 0.3)),
+        side: BorderSide(color: AppTheme.primaryCyan.withValues(alpha: 0.4)),
       ),
+      elevation: 6,
+      margin: EdgeInsets.zero,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildMetric('TRACKING', _trackingState.displayName, _getTrackingColor()),
-              _buildMetric('POSE FRESH', isPoseFresh ? 'YES' : 'NO', isPoseFresh ? Colors.greenAccent : Colors.redAccent),
-              _buildMetric('NODES', '${_engine.capturedNodes.length}', Colors.white),
-              _buildMetric('ANCHORS', '$_anchorCount', Colors.cyanAccent),
-              _buildMetric('POSE AGE', poseAge > 9000 ? 'N/A' : '$poseAge ms', poseAge <= 500 ? Colors.greenAccent : Colors.orangeAccent),
-            ],
+          // Header Bar (Collapsible Toggle)
+          InkWell(
+            onTap: () {
+              setState(() => _isDiagnosticsExpanded = !_isDiagnosticsExpanded);
+            },
+            borderRadius: BorderRadius.circular(14),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.circle,
+                        size: 10,
+                        color: _getTrackingColor(),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'TRACKING: ${_trackingState.displayName.toUpperCase()}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: _getTrackingColor(),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryCyan.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${_engine.capturedNodes.length} Node(s)',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.primaryCyan,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Text(
+                        _isDiagnosticsExpanded ? 'Hide Details' : 'Status Panel ▾',
+                        style: const TextStyle(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        _isDiagnosticsExpanded
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        color: AppTheme.primaryCyan,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'AR SESSION: ACTIVE | VIEW: ALIVE | STATE: ${_engine.state.name.toUpperCase()}',
-                style: const TextStyle(fontSize: 10, color: AppTheme.primaryCyan, fontWeight: FontWeight.bold, fontFamily: 'monospace'),
+
+          // Detailed Expanded Metrics
+          if (_isDiagnosticsExpanded) ...[
+            const Divider(height: 1, color: Colors.white12),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildMetric('TRACKING', _trackingState.displayName, _getTrackingColor()),
+                      _buildMetric('POSE FRESH', isPoseFresh ? 'YES' : 'NO', isPoseFresh ? Colors.greenAccent : Colors.redAccent),
+                      _buildMetric('NODES', '${_engine.capturedNodes.length}', Colors.white),
+                      _buildMetric('ANCHORS', '$_anchorCount', Colors.cyanAccent),
+                      _buildMetric('POSE AGE', poseAge > 9000 ? 'N/A' : '$poseAge ms', poseAge <= 500 ? Colors.greenAccent : Colors.orangeAccent),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'AR SESSION: ACTIVE | VIEW: ALIVE | STATE: ${_engine.state.name.toUpperCase()}',
+                        style: const TextStyle(fontSize: 10, color: AppTheme.primaryCyan, fontWeight: FontWeight.bold, fontFamily: 'monospace'),
+                      ),
+                      const Text(
+                        'GL SURFACE: ALIVE',
+                        style: TextStyle(fontSize: 10, color: Colors.greenAccent, fontWeight: FontWeight.bold, fontFamily: 'monospace'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'CURRENT: (${_currentPose.position.x.toStringAsFixed(2)}, ${_currentPose.position.y.toStringAsFixed(2)}, ${_currentPose.position.z.toStringAsFixed(2)})',
+                        style: const TextStyle(fontSize: 10, color: Colors.white70, fontFamily: 'monospace'),
+                      ),
+                      Text(
+                        'LAST NODE: ${lastNodePos != null ? "(${lastNodePos.x.toStringAsFixed(2)}, ${lastNodePos.y.toStringAsFixed(2)}, ${lastNodePos.z.toStringAsFixed(2)})" : "N/A"}',
+                        style: const TextStyle(fontSize: 10, color: Colors.white70, fontFamily: 'monospace'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'DIST: ${distFromLast.toStringAsFixed(2)}m (MIN: ${_engine.minNodeSpacingMeters.toStringAsFixed(2)}m)',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: distFromLast >= _engine.minNodeSpacingMeters ? Colors.greenAccent : Colors.amberAccent,
+                        ),
+                      ),
+                      Text(
+                        'ACTION: $_lastAction | RESULT: $_lastResult',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: _lastResult == 'SUCCESS' ? Colors.greenAccent : (_lastResult == 'REJECTED' ? Colors.redAccent : Colors.white70),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_rejectionReason.isNotEmpty && _rejectionReason != 'NONE') ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'REASON: $_rejectionReason',
+                      style: const TextStyle(fontSize: 10, color: Colors.orangeAccent, fontStyle: FontStyle.italic),
+                    ),
+                  ],
+                ],
               ),
-              const Text(
-                'GL SURFACE: ALIVE',
-                style: TextStyle(fontSize: 10, color: Colors.greenAccent, fontWeight: FontWeight.bold, fontFamily: 'monospace'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'CURRENT: (${_currentPose.position.x.toStringAsFixed(2)}, ${_currentPose.position.y.toStringAsFixed(2)}, ${_currentPose.position.z.toStringAsFixed(2)})',
-                style: const TextStyle(fontSize: 10, color: Colors.white70, fontFamily: 'monospace'),
-              ),
-              Text(
-                'LAST NODE: ${lastNodePos != null ? "(${lastNodePos.x.toStringAsFixed(2)}, ${lastNodePos.y.toStringAsFixed(2)}, ${lastNodePos.z.toStringAsFixed(2)})" : "N/A"}',
-                style: const TextStyle(fontSize: 10, color: Colors.white70, fontFamily: 'monospace'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'DIST: ${distFromLast.toStringAsFixed(2)}m (MIN: ${_engine.minNodeSpacingMeters.toStringAsFixed(2)}m)',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: distFromLast >= _engine.minNodeSpacingMeters ? Colors.greenAccent : Colors.amberAccent,
-                ),
-              ),
-              Text(
-                'ACTION: $_lastAction | RESULT: $_lastResult',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: _lastResult == 'SUCCESS' ? Colors.greenAccent : (_lastResult == 'REJECTED' ? Colors.redAccent : Colors.white70),
-                ),
-              ),
-            ],
-          ),
-          if (_rejectionReason.isNotEmpty && _rejectionReason != 'NONE') ...[
-            const SizedBox(height: 4),
-            Text(
-              'REASON: $_rejectionReason',
-              style: const TextStyle(fontSize: 10, color: Colors.orangeAccent, fontStyle: FontStyle.italic),
             ),
           ],
         ],
@@ -905,75 +777,66 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
   }
 
   Widget _buildActionControls() {
-    final bool isPaused = _engine.state == RegistrationState.paused;
-
     return Column(
       children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: WrapAlignment.center,
-          children: [
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryCyan, foregroundColor: Colors.black),
-              onPressed: _handleAddNode,
-              icon: const Icon(Icons.add_location_rounded, size: 18),
-              label: const Text('+ ADD NODE'),
+        // Primary Action Button: + ADD NODE
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryCyan,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              elevation: 4,
             ),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent, foregroundColor: Colors.black),
-              onPressed: _handleMarkTurn,
-              icon: const Icon(Icons.turn_right_rounded, size: 18),
-              label: const Text('MARK TURN'),
+            onPressed: _handleAddNode,
+            icon: const Icon(Icons.add_location_alt_rounded, size: 24),
+            label: Text(
+              _engine.capturedNodes.isEmpty
+                  ? '+ ADD START NODE (NODE 0)'
+                  : '+ ADD NODE (${_engine.capturedNodes.length})',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 0.5),
             ),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.purpleAccent, foregroundColor: Colors.white),
-              onPressed: _handleMarkDoor,
-              icon: const Icon(Icons.sensor_door_rounded, size: 18),
-              label: const Text('MARK DOOR'),
-            ),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent, foregroundColor: Colors.black),
-              onPressed: _promptDestinationDialog,
-              icon: const Icon(Icons.flag_rounded, size: 18),
-              label: const Text('MARK DESTINATION'),
-            ),
-          ],
+          ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         Row(
           children: [
+            // RESET Button
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () {
-                  if (_engine.state == RegistrationState.registering) {
-                    _engine.pauseRegistration();
-                  } else {
-                    _engine.resumeRegistration();
-                  }
-                  if (mounted) setState(() {});
-                },
-                icon: Icon(isPaused ? Icons.play_arrow : Icons.pause),
-                label: Text(isPaused ? 'RESUME' : 'PAUSE'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  side: BorderSide(color: Colors.amber.shade400, width: 1.5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: _handleReset,
+                icon: Icon(Icons.refresh_rounded, color: Colors.amber.shade400, size: 18),
+                label: Text(
+                  'RESET',
+                  style: TextStyle(color: Colors.amber.shade400, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
-                onPressed: _engine.capturedNodes.length >= 2 ? _showRegistrationQualityDialog : null,
-                icon: const Icon(Icons.assessment_rounded, size: 16),
-                label: const Text('SUMMARY'),
-              ),
-            ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
+            // SAVE ROUTE Button
             Expanded(
               flex: 2,
               child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent, foregroundColor: Colors.black),
-                onPressed: _engine.capturedNodes.length >= 2 ? _saveAndGenerateQR : null,
-                icon: const Icon(Icons.qr_code_rounded, size: 16),
-                label: const Text('SAVE & GENERATE QR'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  backgroundColor: _engine.capturedNodes.isNotEmpty ? Colors.greenAccent : Colors.grey.shade800,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 2,
+                ),
+                onPressed: _engine.capturedNodes.isNotEmpty ? _saveAndGenerateQR : null,
+                icon: const Icon(Icons.check_circle_rounded, size: 18),
+                label: const Text(
+                  'SAVE ROUTE',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5),
+                ),
               ),
             ),
           ],
@@ -982,4 +845,3 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
     );
   }
 }
-

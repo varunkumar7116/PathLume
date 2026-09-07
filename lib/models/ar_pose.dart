@@ -100,12 +100,11 @@ class ARPose {
 
   factory ARPose.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const ARPose();
-    final rawTimestamp = (json['timestamp'] as num?)?.toInt() ?? 0;
     return ARPose(
       position: Vector3D.fromJson(json['position'] as Map<String, dynamic>?),
       rotation: Quaternion4D.fromJson(json['rotation'] as Map<String, dynamic>?),
       trackingState: ARTrackingStateX.fromString(json['trackingState'] as String?),
-      timestamp: rawTimestamp > 0 ? rawTimestamp : DateTime.now().millisecondsSinceEpoch,
+      timestamp: DateTime.now().millisecondsSinceEpoch,
       isMarkerPlaced: json['isMarkerPlaced'] as bool? ?? false,
     );
   }
