@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "707465476062",
+    "project_id": "pathlume-18e66",
+    "storage_bucket": "pathlume-18e66.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:707465476062:android:645f68ab01cdf060c7cf4f",
+        "android_client_info": {
+          "package_name": "com.pathlume.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGtkCWIPweFf4kNMIFsblbS_D5JpXvBVw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
