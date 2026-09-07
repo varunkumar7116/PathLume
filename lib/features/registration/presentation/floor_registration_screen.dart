@@ -52,6 +52,12 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
   StreamSubscription<RegistrationState>? _stateSub;
   StreamSubscription<List<NavigationNode>>? _nodesSub;
 
+  String _lastAction = 'NONE';
+  String _lastResult = 'N/A';
+  String _rejectionReason = 'NONE';
+  int _anchorCount = 0;
+  DateTime _lastPoseLogTime = DateTime.now();
+
   @override
   void initState() {
     super.initState();
@@ -85,12 +91,6 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
 
     _setupAR();
   }
-
-  String _lastAction = 'NONE';
-  String _lastResult = 'N/A';
-  String _rejectionReason = 'NONE';
-  int _anchorCount = 0;
-  DateTime _lastPoseLogTime = DateTime.now();
 
   void _setupAR() {
     _trackingSub?.cancel();
@@ -153,82 +153,187 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
     super.dispose();
   }
 
-  bool _ensureRegistrationActive() {
-    if (_engine.state == RegistrationState.preparing) {
-      developer.log('[PATHLUME][ADD_NODE] Initializing Start Point (Node 0) at ${_currentPose.position}');
-      _engine.setStartPoint(_currentPose);
-      _arService.addNodeAnchor(
-        _currentPose.position.x,
-        _currentPose.position.y,
-        _currentPose.position.z,
+  void _updateNative3DRoute() {
+    final points = _engine.capturedNodes.map((n) => n.position).toList();
+    Vector3D? dest;
+    if (_engine.capturedDestinations.isNotEmpty) {
+      final lastDestNodeId = _engine.capturedDestinations.last.nodeId;
+      final destNode = _engine.capturedNodes.firstWhere(
+        (n) => n.nodeId == lastDestNodeId,
+        orElse: () => _engine.capturedNodes.last,
       );
-      _anchorCount++;
-      _engine.startWalking();
-      _lastResult = 'SUCCESS';
-      _rejectionReason = 'NONE';
-      return true;
-    } else if (_engine.state == RegistrationState.originSet) {
-      _engine.startWalking();
-    } else if (_engine.state == RegistrationState.paused) {
-      _engine.resumeRegistration();
+      dest = destNode.position;
     }
-    return false;
+    _arService.updateNavigationRoute(points, dest ?? (points.isNotEmpty ? points.last : const Vector3D()));
   }
 
-  bool _validateARTrackingForAction() {
-    if (_isDeveloperTestMode) return true;
-    if (_trackingState != ARTrackingState.tracking) {
+  void _handleAddNode() async {
+    _lastAction = 'ADD_NODE';
+    developer.log('PATHLUME_AR NODE_CREATE_START timestamp=${_currentPose.timestamp} tracking_state=${_trackingState.displayName} pos=(${_currentPose.position.x.toStringAsFixed(2)}, ${_currentPose.position.y.toStringAsFixed(2)}, ${_currentPose.position.z.toStringAsFixed(2)})');
+
+    if (!_isDeveloperTestMode && _trackingState != ARTrackingState.tracking && _trackingState != ARTrackingState.initializing) {
       _lastResult = 'REJECTED';
-      _rejectionReason = 'AR tracking not ready (${_trackingState.displayName}). Move phone slowly to calibrate tracking.';
+      _rejectionReason = 'AR tracking state is ${_trackingState.displayName}. Calibrating...';
       if (mounted) setState(() {});
       _showWarningSnackBar(_rejectionReason);
-      return false;
+      return;
     }
-    return true;
-  }
 
-  void _handleAddNode() {
-    _lastAction = 'ADD_NODE';
-    developer.log('PATHLUME_AR NODE_CREATE_START timestamp=${_currentPose.timestamp} tracking_state=${_trackingState.displayName} pos=(${_currentPose.position.x.toStringAsFixed(2)}, ${_currentPose.position.y.toStringAsFixed(2)}, ${_currentPose.position.z.toStringAsFixed(2)}) ageMs=${_currentPose.ageMs}');
+    final Vector3D pos = _currentPose.position;
+    final Quaternion4D rot = _currentPose.rotation;
 
-    if (!_validateARTrackingForAction()) return;
+    if (_engine.capturedNodes.isEmpty) {
+      _engine.setStartPoint(_currentPose);
+      _engine.startWalking();
 
-    final createdStartNode = _ensureRegistrationActive();
-    if (createdStartNode) {
-      developer.log('PATHLUME_AR NODE_CREATED id=0 type=START tracking_state=${_trackingState.displayName}');
+      _engine.addNode(
+        position: pos,
+        rotation: rot,
+        forceAdd: true,
+      );
+
+      await _arService.addNodeAnchor(pos.x, pos.y, pos.z);
+      _anchorCount++;
+      _lastResult = 'SUCCESS';
+      _rejectionReason = 'NONE';
+
+      _updateNative3DRoute();
+
       if (mounted) {
         setState(() {});
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.check_circle_rounded, color: Colors.greenAccent),
-                SizedBox(width: 8),
-                Expanded(child: Text('Start Node (Node 0) Placed! Walk & tap + ADD NODE for next points.')),
-              ],
-            ),
-            backgroundColor: Colors.grey.shade900,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        _showSuccessSnackBar('Start Node (Node 0) Placed! Walk & tap + ADD NODE for next points.');
       }
       return;
     }
 
+    if (_engine.state == RegistrationState.preparing || _engine.state == RegistrationState.originSet) {
+      _engine.startWalking();
+    } else if (_engine.state == RegistrationState.paused) {
+      _engine.resumeRegistration();
+    }
+
     final result = _engine.addNode(
-      position: _currentPose.position,
-      rotation: _currentPose.rotation,
+      position: pos,
+      rotation: rot,
       forceAdd: true,
     );
+
     if (result.success && result.node != null) {
-      developer.log('PATHLUME_AR NODE_CREATED id=${result.node!.sequence} type=${result.node!.type.nameString} tracking_state=${_trackingState.displayName}');
+      await _arService.addNodeAnchor(pos.x, pos.y, pos.z);
+      _anchorCount++;
+      _lastResult = 'SUCCESS';
+      _rejectionReason = 'NONE';
+
+      _updateNative3DRoute();
+
+      if (mounted) {
+        setState(() {});
+        _showSuccessSnackBar('Added Node ${result.node!.sequence} (${result.node!.name})');
+      }
+    } else {
+      _lastResult = 'REJECTED';
+      _rejectionReason = result.warningMessage ?? 'Could not add node';
+      if (mounted) setState(() {});
+      _showWarningSnackBar(_rejectionReason);
     }
-    _processResult(result);
+  }
+
+  void _handleMarkTag(NodeType type) async {
+    if (_engine.capturedNodes.isEmpty) {
+      _showWarningSnackBar('Add at least one node first before tagging.');
+      return;
+    }
+
+    final lastNode = _engine.capturedNodes.last;
+    if (type == NodeType.destination) {
+      _showDestinationDialog(lastNode);
+    } else if (type == NodeType.turn) {
+      _engine.markTurn(position: lastNode.position, name: 'Turn ${lastNode.sequence}');
+      _lastAction = 'MARK_TURN';
+      _lastResult = 'SUCCESS';
+      _rejectionReason = 'NONE';
+      _updateNative3DRoute();
+      if (mounted) {
+        setState(() {});
+        _showSuccessSnackBar('Tagged Node ${lastNode.sequence} as TURN');
+      }
+    } else if (type == NodeType.door) {
+      _engine.markDoor(position: lastNode.position, name: 'Door ${lastNode.sequence}');
+      _lastAction = 'MARK_DOOR';
+      _lastResult = 'SUCCESS';
+      _rejectionReason = 'NONE';
+      _updateNative3DRoute();
+      if (mounted) {
+        setState(() {});
+        _showSuccessSnackBar('Tagged Node ${lastNode.sequence} as DOOR');
+      }
+    }
+  }
+
+  void _showDestinationDialog(NavigationNode lastNode) {
+    final controller = TextEditingController(text: 'Destination ${_engine.capturedDestinations.length + 1}');
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.cardDark,
+        title: const Text('Mark Destination Node', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Tagging Node ${lastNode.sequence} at [${lastNode.position.x.toStringAsFixed(1)}, ${lastNode.position.z.toStringAsFixed(1)}]:',
+                style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Destination Name (e.g. Room 101, Lobby)',
+                labelStyle: const TextStyle(color: AppTheme.primaryCyan),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: const BorderSide(color: Colors.white24),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: const BorderSide(color: AppTheme.primaryCyan),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('CANCEL', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryCyan),
+            onPressed: () {
+              final name = controller.text.trim();
+              if (name.isNotEmpty) {
+                _engine.markDestination(position: lastNode.position, name: name);
+                _lastAction = 'MARK_DESTINATION';
+                _lastResult = 'SUCCESS';
+                _rejectionReason = 'NONE';
+                _updateNative3DRoute();
+                Navigator.of(context).pop();
+                if (mounted) {
+                  setState(() {});
+                  _showSuccessSnackBar('Destination "$name" tagged at Node ${lastNode.sequence}');
+                }
+              }
+            },
+            child: const Text('SAVE DESTINATION', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _handleReset() {
     _arService.clearNodeAnchors();
+    _arService.clearNavigationRoute();
     _engine.initializeRegistration(
       buildingId: widget.buildingId,
       floorId: widget.floorId,
@@ -250,46 +355,22 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
     }
   }
 
-  Future<void> _processResult(NodeAddResult result) async {
-    if (result.success && result.node != null) {
-      developer.log('[PATHLUME][ADD_NODE] RegistrationEngine accepted node ${result.node!.nodeId}');
-      developer.log('[PATHLUME][ADD_NODE] Sending anchor request to native ARService for (${result.node!.position.x}, ${result.node!.position.y}, ${result.node!.position.z})');
-
-      final anchorSuccess = await _arService.addNodeAnchor(
-        result.node!.position.x,
-        result.node!.position.y,
-        result.node!.position.z,
-      );
-
-      if (anchorSuccess) {
-        _anchorCount++;
-      }
-      _lastResult = 'SUCCESS';
-      _rejectionReason = 'NONE';
-
-      if (mounted) {
-        setState(() {});
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle_rounded, color: Colors.greenAccent),
-                const SizedBox(width: 8),
-                Expanded(child: Text('Added ${result.node!.name}')),
-              ],
-            ),
-            backgroundColor: Colors.grey.shade900,
-            duration: const Duration(seconds: 1),
+  void _showSuccessSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.greenAccent),
+              const SizedBox(width: 8),
+              Expanded(child: Text(message)),
+            ],
           ),
-        );
-      }
-    } else if (!result.success && result.warningMessage != null) {
-      _lastResult = 'REJECTED';
-      _rejectionReason = result.warningMessage!;
-      if (mounted) setState(() {});
-      developer.log('[PATHLUME][ADD_NODE] Node add rejected: ${result.warningMessage}');
-      _showWarningSnackBar(result.warningMessage!);
+          backgroundColor: Colors.grey.shade900,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -310,6 +391,60 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
         ),
       );
     }
+  }
+
+  Future<void> _saveAndGenerateQR() async {
+    final graph = _engine.finishAndProcessGraph();
+    final validator = GraphValidator();
+    final validationResult = validator.validateGraph(
+      graph,
+      destinations: _engine.capturedDestinations,
+    );
+
+    final targetStatus = validationResult.isValid ? 'ready' : 'draft';
+
+    final existingFloor = await widget.repository.getFloorById(widget.buildingId, widget.floorId);
+    final updatedFloor = Floor(
+      floorId: existingFloor?.floorId ?? widget.floorId,
+      buildingId: existingFloor?.buildingId ?? widget.buildingId,
+      floorNumber: existingFloor?.floorNumber ?? 1,
+      name: existingFloor?.name ?? widget.floorName,
+      origin: _engine.origin ?? existingFloor?.origin,
+      nodes: _engine.capturedNodes,
+      edges: _engine.capturedEdges,
+      destinations: _engine.capturedDestinations,
+      registrationStatus: targetStatus,
+      updatedAt: DateTime.now(),
+      createdAt: existingFloor?.createdAt ?? DateTime.now(),
+      version: existingFloor?.version ?? 1,
+    );
+
+    await widget.repository.saveFloor(updatedFloor);
+
+    final building = await widget.repository.getBuildingById(widget.buildingId);
+    final buildingName = building?.name ?? 'Building';
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: validationResult.isValid ? Colors.green : Colors.orange,
+        content: Text(
+          validationResult.isValid
+              ? 'Floor navigation graph saved and QR code generated!'
+              : 'Floor saved as DRAFT. Add destinations to complete graph.',
+        ),
+      ),
+    );
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => FloorQrScreen(
+          buildingName: buildingName,
+          floor: updatedFloor,
+        ),
+      ),
+    );
   }
 
   @override
@@ -347,7 +482,7 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
       ),
       body: Stack(
         children: [
-          // AR Surface PlatformView or Simulated AR View
+          // Native Golden Reference AR Surface PlatformView
           _buildARView(),
 
           SafeArea(
@@ -443,7 +578,6 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
       );
     }
 
-    // High-performance surface composition (1:1 native resolution, zero Virtual Display blur)
     const String viewType = 'com.pathlume.app/ar_view';
     const Map<String, dynamic> creationParams = <String, dynamic>{};
 
@@ -518,7 +652,6 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header Bar (Collapsible Toggle)
           InkWell(
             onTap: () {
               setState(() => _isDiagnosticsExpanded = !_isDiagnosticsExpanded);
@@ -584,7 +717,6 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
             ),
           ),
 
-          // Detailed Expanded Metrics
           if (_isDiagnosticsExpanded) ...[
             const Divider(height: 1, color: Colors.white12),
             Padding(
@@ -635,11 +767,11 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'DIST: ${distFromLast.toStringAsFixed(2)}m (MIN: ${_engine.minNodeSpacingMeters.toStringAsFixed(2)}m)',
+                        'DIST: ${distFromLast.toStringAsFixed(2)}m',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
-                          color: distFromLast >= _engine.minNodeSpacingMeters ? Colors.greenAccent : Colors.amberAccent,
+                          color: distFromLast >= 0.1 ? Colors.greenAccent : Colors.amberAccent,
                         ),
                       ),
                       Text(
@@ -722,63 +854,45 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
     );
   }
 
-  Future<void> _saveAndGenerateQR() async {
-    final graph = _engine.finishAndProcessGraph();
-    final validator = GraphValidator();
-    final validationResult = validator.validateGraph(
-      graph,
-      destinations: _engine.capturedDestinations,
-    );
-
-    final targetStatus = validationResult.isValid ? 'ready' : 'draft';
-
-    final existingFloor = await widget.repository.getFloorById(widget.buildingId, widget.floorId);
-    final updatedFloor = Floor(
-      floorId: existingFloor?.floorId ?? widget.floorId,
-      buildingId: existingFloor?.buildingId ?? widget.buildingId,
-      floorNumber: existingFloor?.floorNumber ?? 1,
-      name: existingFloor?.name ?? widget.floorName,
-      origin: _engine.origin ?? existingFloor?.origin,
-      nodes: _engine.capturedNodes,
-      edges: _engine.capturedEdges,
-      destinations: _engine.capturedDestinations,
-      registrationStatus: targetStatus,
-      updatedAt: DateTime.now(),
-      createdAt: existingFloor?.createdAt ?? DateTime.now(),
-      version: existingFloor?.version ?? 1,
-    );
-
-    await widget.repository.saveFloor(updatedFloor);
-
-    final building = await widget.repository.getBuildingById(widget.buildingId);
-    final buildingName = building?.name ?? 'Building';
-
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: validationResult.isValid ? Colors.green : Colors.orange,
-        content: Text(
-          validationResult.isValid
-              ? 'Floor navigation graph saved and QR code generated!'
-              : 'Floor saved as DRAFT. Add destinations to complete graph.',
-        ),
-      ),
-    );
-
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => FloorQrScreen(
-          buildingName: buildingName,
-          floor: updatedFloor,
-        ),
-      ),
-    );
-  }
-
   Widget _buildActionControls() {
     return Column(
       children: [
+        // Tagging Toolbar
+        if (_engine.capturedNodes.isNotEmpty) ...[
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ActionChip(
+                  avatar: const Icon(Icons.turn_right_rounded, size: 16, color: AppTheme.primaryCyan),
+                  label: const Text('MARK TURN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  backgroundColor: AppTheme.cardDark,
+                  side: const BorderSide(color: AppTheme.primaryCyan),
+                  onPressed: () => _handleMarkTag(NodeType.turn),
+                ),
+                const SizedBox(width: 8),
+                ActionChip(
+                  avatar: const Icon(Icons.door_front_door_rounded, size: 16, color: Colors.purpleAccent),
+                  label: const Text('MARK DOOR', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  backgroundColor: AppTheme.cardDark,
+                  side: const BorderSide(color: Colors.purpleAccent),
+                  onPressed: () => _handleMarkTag(NodeType.door),
+                ),
+                const SizedBox(width: 8),
+                ActionChip(
+                  avatar: const Icon(Icons.place_rounded, size: 16, color: Colors.greenAccent),
+                  label: const Text('MARK DESTINATION', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  backgroundColor: AppTheme.cardDark,
+                  side: const BorderSide(color: Colors.greenAccent),
+                  onPressed: () => _handleMarkTag(NodeType.destination),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+
         // Primary Action Button: + ADD NODE
         SizedBox(
           width: double.infinity,
