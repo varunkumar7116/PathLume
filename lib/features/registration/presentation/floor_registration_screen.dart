@@ -553,7 +553,7 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          '${_engine.capturedNodes.length} Node(s)',
+                          '${_engine.capturedNodes.length} Node(s) • ${_engine.totalDistance.toStringAsFixed(1)}m',
                           style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
