@@ -47,7 +47,7 @@ class ARRenderer : GLSurfaceView.Renderer {
 
     var displayRotationSupplier: (() -> Int)? = null
 
-    // 3D Node Marker (Cube) Program & Buffers
+    // 3D Node Marker (Diamond / Pyramid Beacon) Program & Buffers
     private var programHandle: Int = -1
     private var positionHandle: Int = -1
     private var colorHandle: Int = -1
@@ -56,25 +56,24 @@ class ARRenderer : GLSurfaceView.Renderer {
     private lateinit var vertexBuffer: FloatBuffer
     private lateinit var indexBuffer: ShortBuffer
 
-    // Cube Vertices for 3D Anchor Markers (0.1m size)
-    private val cubeVertices = floatArrayOf(
-        -0.05f, -0.05f,  0.05f,
-         0.05f, -0.05f,  0.05f,
-         0.05f,  0.05f,  0.05f,
-        -0.05f,  0.05f,  0.05f,
-        -0.05f, -0.05f, -0.05f,
-         0.05f, -0.05f, -0.05f,
-         0.05f,  0.05f, -0.05f,
-        -0.05f,  0.05f, -0.05f
+    // 3D Diamond / Pyramid Beacon Vertices (Height: 0.30m, Width: 0.16m)
+    private val beaconVertices = floatArrayOf(
+        // Top pyramid tip
+         0.00f,  0.15f,  0.00f, // 0
+        // Middle diamond equator
+        -0.08f,  0.00f,  0.08f, // 1
+         0.08f,  0.00f,  0.08f, // 2
+         0.08f,  0.00f, -0.08f, // 3
+        -0.08f,  0.00f, -0.08f, // 4
+        // Bottom pyramid tip
+         0.00f, -0.15f,  0.00f  // 5
     )
 
-    private val cubeIndices = shortArrayOf(
-        0, 1, 2, 0, 2, 3,
-        4, 5, 6, 4, 6, 7,
-        4, 0, 3, 4, 3, 7,
-        1, 5, 6, 1, 6, 2,
-        4, 5, 1, 4, 1, 0,
-        3, 2, 6, 3, 6, 7
+    private val beaconIndices = shortArrayOf(
+        // Upper pyramid faces
+        0, 1, 2,  0, 2, 3,  0, 3, 4,  0, 4, 1,
+        // Lower pyramid faces
+        5, 2, 1,  5, 3, 2,  5, 4, 3,  5, 1, 4
     )
 
     var activeAnchors: List<Anchor> = emptyList()
@@ -88,7 +87,7 @@ class ARRenderer : GLSurfaceView.Renderer {
         GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
 
-        // Initialize Camera OES Texture with Linear Filtering for crisp high-resolution display
+        // Initialize Camera OES Texture with Linear Filtering
         val textures = IntArray(1)
         GLES20.glGenTextures(1, textures, 0)
         textureId = textures[0]
@@ -147,20 +146,20 @@ class ARRenderer : GLSurfaceView.Renderer {
             GLES20.glLinkProgram(it)
         }
 
-        // Initialize Cube Marker Buffers
-        vertexBuffer = ByteBuffer.allocateDirect(cubeVertices.size * 4)
+        // Initialize 3D Beacon Buffers
+        vertexBuffer = ByteBuffer.allocateDirect(beaconVertices.size * 4)
             .order(ByteOrder.nativeOrder())
             .asFloatBuffer()
-            .put(cubeVertices)
+            .put(beaconVertices)
         vertexBuffer.position(0)
 
-        indexBuffer = ByteBuffer.allocateDirect(cubeIndices.size * 2)
+        indexBuffer = ByteBuffer.allocateDirect(beaconIndices.size * 2)
             .order(ByteOrder.nativeOrder())
             .asShortBuffer()
-            .put(cubeIndices)
+            .put(beaconIndices)
         indexBuffer.position(0)
 
-        // 3D Marker Shaders
+        // 3D Overlay Shaders
         val vertexShaderCode = """
             uniform mat4 uMVPMatrix;
             attribute vec4 vPosition;
@@ -242,13 +241,9 @@ class ARRenderer : GLSurfaceView.Renderer {
                     android.util.Log.i("PATHLUME_AR", "PATHLUME_AR RENDERER_ANCHOR_UPDATED count=${anchors.size} tracking=${camera.trackingState.name}")
                 }
 
-                if (frameCount % 60 == 0L) {
-                    android.util.Log.d("PATHLUME_AR", "PATHLUME_AR FRAME_UPDATE frame=$frameCount anchor_count=${anchors.size} tracking=${camera.trackingState.name}")
-                }
-
                 val anchorPositions = mutableListOf<FloatArray>()
 
-                // Render active spatial anchors (3D node markers)
+                // Render active spatial anchors (3D Diamond Beacons)
                 for (anchor in anchors) {
                     if (anchor.trackingState != com.google.ar.core.TrackingState.STOPPED) {
                         val pose = anchor.pose
@@ -258,20 +253,20 @@ class ARRenderer : GLSurfaceView.Renderer {
                         Matrix.multiplyMM(modelViewProjectionMatrix, 0, viewMatrix, 0, modelMatrix, 0)
                         Matrix.multiplyMM(modelViewProjectionMatrix, 0, projectionMatrix, 0, modelViewProjectionMatrix, 0)
 
-                        drawCube(modelViewProjectionMatrix, pose.tx(), pose.ty(), pose.tz())
+                        drawBeaconNode(modelViewProjectionMatrix, pose.tx(), pose.ty(), pose.tz())
                     }
                 }
 
-                // Render 3D registered path line strip connecting consecutive anchors
+                // Render broad 3D board line ribbon connecting consecutive anchors
                 if (anchorPositions.size >= 2) {
-                    drawPathLines(anchorPositions)
+                    drawBroadPathRibbon(anchorPositions, floatArrayOf(0.0f, 1.0f, 0.5f, 0.9f))
                 }
 
-                // Render 3D Active Navigation Route (Path + Directional Arrows + Destination Marker)
+                // Render 3D Active Navigation Route (Broad Ribbon Path + Directional Arrows + Destination Marker)
                 val routeSnapshot = navigationRoutePoints
                 val destSnapshot = destinationPoint
                 if (routeSnapshot.size >= 2) {
-                    drawNavigationPath(routeSnapshot)
+                    drawBroadPathRibbon(routeSnapshot, floatArrayOf(0.0f, 0.9f, 1.0f, 0.95f))
                     drawDirectionalArrows(routeSnapshot)
                 }
                 destSnapshot?.let { dest ->
@@ -318,11 +313,7 @@ class ARRenderer : GLSurfaceView.Renderer {
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
     }
 
-    private fun drawCube(mvpMatrix: FloatArray, tx: Float = 0f, ty: Float = 0f, tz: Float = 0f) {
-        if (frameCount % 60 == 0L) {
-            android.util.Log.d("PATHLUME_ARRenderer", "[PATHLUME][MARKER] drawing node marker at ($tx, $ty, $tz)")
-        }
-
+    private fun drawBeaconNode(mvpMatrix: FloatArray, tx: Float, ty: Float, tz: Float) {
         GLES20.glUseProgram(programHandle)
 
         positionHandle = GLES20.glGetAttribLocation(programHandle, "vPosition")
@@ -330,31 +321,58 @@ class ARRenderer : GLSurfaceView.Renderer {
         GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 12, vertexBuffer)
 
         colorHandle = GLES20.glGetUniformLocation(programHandle, "vColor")
-        // Cyan / Blue Accent Marker Color
-        GLES20.glUniform4f(colorHandle, 0.0f, 0.9f, 1.0f, 1.0f)
+        // Vibrant Cyan / Aqua 3D Diamond Node Color
+        GLES20.glUniform4f(colorHandle, 0.0f, 0.95f, 1.0f, 1.0f)
 
         mvpMatrixHandle = GLES20.glGetUniformLocation(programHandle, "uMVPMatrix")
         GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, mvpMatrix, 0)
 
-        GLES20.glDrawElements(GLES20.GL_TRIANGLES, cubeIndices.size, GLES20.GL_UNSIGNED_SHORT, indexBuffer)
+        GLES20.glDrawElements(GLES20.GL_TRIANGLES, beaconIndices.size, GLES20.GL_UNSIGNED_SHORT, indexBuffer)
 
         GLES20.glDisableVertexAttribArray(positionHandle)
     }
 
-    private fun drawPathLines(positions: List<FloatArray>) {
-        val lineCoords = FloatArray(positions.size * 3)
-        var index = 0
-        for (pos in positions) {
-            lineCoords[index++] = pos[0]
-            lineCoords[index++] = pos[1]
-            lineCoords[index++] = pos[2]
+    private fun drawBroadPathRibbon(positions: List<FloatArray>, rgbaColor: FloatArray) {
+        if (positions.size < 2) return
+
+        // Generate broad 3D quad ribbon geometry (width = 0.20m = 20cm broad board line)
+        val ribbonWidth = 0.20f
+        val halfWidth = ribbonWidth / 2.0f
+
+        val quadCoords = mutableListOf<Float>()
+
+        for (i in 0 until positions.size - 1) {
+            val p1 = positions[i]
+            val p2 = positions[i + 1]
+
+            val dx = p2[0] - p1[0]
+            val dz = p2[2] - p1[2]
+            val len = Math.sqrt((dx * dx + dz * dz).toDouble()).toFloat()
+
+            val nx = if (len > 0.001f) (-dz / len) * halfWidth else halfWidth
+            val nz = if (len > 0.001f) (dx / len) * halfWidth else 0f
+
+            val y1 = p1[1]
+            val y2 = p2[1]
+
+            // First triangle (V0, V1, V2)
+            quadCoords.add(p1[0] + nx); quadCoords.add(y1); quadCoords.add(p1[2] + nz)
+            quadCoords.add(p1[0] - nx); quadCoords.add(y1); quadCoords.add(p1[2] - nz)
+            quadCoords.add(p2[0] + nx); quadCoords.add(y2); quadCoords.add(p2[2] + nz)
+
+            // Second triangle (V1, V3, V2)
+            quadCoords.add(p1[0] - nx); quadCoords.add(y1); quadCoords.add(p1[2] - nz)
+            quadCoords.add(p2[0] - nx); quadCoords.add(y2); quadCoords.add(p2[2] - nz)
+            quadCoords.add(p2[0] + nx); quadCoords.add(y2); quadCoords.add(p2[2] + nz)
         }
 
-        val lineBuffer = ByteBuffer.allocateDirect(lineCoords.size * 4)
+        val ribbonBuffer = ByteBuffer.allocateDirect(quadCoords.size * 4)
             .order(ByteOrder.nativeOrder())
             .asFloatBuffer()
-            .put(lineCoords)
-        lineBuffer.position(0)
+        for (f in quadCoords) {
+            ribbonBuffer.put(f)
+        }
+        ribbonBuffer.position(0)
 
         val vpMatrix = FloatArray(16)
         Matrix.multiplyMM(vpMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
@@ -363,17 +381,15 @@ class ARRenderer : GLSurfaceView.Renderer {
 
         positionHandle = GLES20.glGetAttribLocation(programHandle, "vPosition")
         GLES20.glEnableVertexAttribArray(positionHandle)
-        GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 12, lineBuffer)
+        GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 12, ribbonBuffer)
 
         colorHandle = GLES20.glGetUniformLocation(programHandle, "vColor")
-        // Bright Green line path between registered nodes
-        GLES20.glUniform4f(colorHandle, 0.0f, 1.0f, 0.5f, 1.0f)
+        GLES20.glUniform4fv(colorHandle, 1, rgbaColor, 0)
 
         mvpMatrixHandle = GLES20.glGetUniformLocation(programHandle, "uMVPMatrix")
         GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, vpMatrix, 0)
 
-        GLES20.glLineWidth(10.0f)
-        GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, positions.size)
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, quadCoords.size / 3)
 
         GLES20.glDisableVertexAttribArray(positionHandle)
     }
@@ -391,53 +407,6 @@ class ARRenderer : GLSurfaceView.Renderer {
     fun clearNavigationRoute() {
         this.navigationRoutePoints = emptyList()
         this.destinationPoint = null
-    }
-
-    private var navigationPathBuffer: FloatBuffer? = null
-    private var navigationPathCapacity: Int = 0
-    private val viewProjectionMatrix = FloatArray(16)
-
-    private fun drawNavigationPath(positions: List<FloatArray>) {
-        if (positions.isEmpty()) return
-
-        val requiredFloatCount = positions.size * 3
-        var buffer = navigationPathBuffer
-
-        if (buffer == null || navigationPathCapacity < requiredFloatCount) {
-            navigationPathCapacity = Math.max(requiredFloatCount, 300)
-            buffer = ByteBuffer.allocateDirect(navigationPathCapacity * 4)
-                .order(ByteOrder.nativeOrder())
-                .asFloatBuffer()
-            navigationPathBuffer = buffer
-        }
-
-        buffer.clear()
-        for (pos in positions) {
-            buffer.put(pos[0])
-            buffer.put(pos[1])
-            buffer.put(pos[2])
-        }
-        buffer.position(0)
-
-        Matrix.multiplyMM(viewProjectionMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
-
-        GLES20.glUseProgram(programHandle)
-
-        positionHandle = GLES20.glGetAttribLocation(programHandle, "vPosition")
-        GLES20.glEnableVertexAttribArray(positionHandle)
-        GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 12, buffer)
-
-        colorHandle = GLES20.glGetUniformLocation(programHandle, "vColor")
-        // Vibrant Cyan navigation route path (3D world space)
-        GLES20.glUniform4f(colorHandle, 0.0f, 0.9f, 1.0f, 1.0f)
-
-        mvpMatrixHandle = GLES20.glGetUniformLocation(programHandle, "uMVPMatrix")
-        GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, viewProjectionMatrix, 0)
-
-        GLES20.glLineWidth(12.0f)
-        GLES20.glDrawArrays(GLES20.GL_LINE_STRIP, 0, positions.size)
-
-        GLES20.glDisableVertexAttribArray(positionHandle)
     }
 
     private fun drawDirectionalArrows(positions: List<FloatArray>) {
@@ -465,7 +434,7 @@ class ARRenderer : GLSurfaceView.Renderer {
             Matrix.multiplyMM(modelViewProjectionMatrix, 0, viewMatrix, 0, modelMatrix, 0)
             Matrix.multiplyMM(modelViewProjectionMatrix, 0, projectionMatrix, 0, modelViewProjectionMatrix, 0)
 
-            drawCube(modelViewProjectionMatrix)
+            drawBeaconNode(modelViewProjectionMatrix, midX, midY, midZ)
         }
     }
 
@@ -489,7 +458,7 @@ class ARRenderer : GLSurfaceView.Renderer {
         mvpMatrixHandle = GLES20.glGetUniformLocation(programHandle, "uMVPMatrix")
         GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false, modelViewProjectionMatrix, 0)
 
-        GLES20.glDrawElements(GLES20.GL_TRIANGLES, cubeIndices.size, GLES20.GL_UNSIGNED_SHORT, indexBuffer)
+        GLES20.glDrawElements(GLES20.GL_TRIANGLES, beaconIndices.size, GLES20.GL_UNSIGNED_SHORT, indexBuffer)
 
         GLES20.glDisableVertexAttribArray(positionHandle)
     }
@@ -501,4 +470,3 @@ class ARRenderer : GLSurfaceView.Renderer {
         }
     }
 }
-
