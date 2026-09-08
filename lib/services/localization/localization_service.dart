@@ -119,6 +119,8 @@ class LocalizationService {
       floorId: payload.floorId,
       position: const Vector3D(x: 0, y: 0, z: 0),
       rotation: const Quaternion4D(),
+      qrCodePayload: payload.rawPayload,
+      createdAt: DateTime.now(),
     );
 
     final transform = _alignmentEngine.computeAlignmentTransform(
