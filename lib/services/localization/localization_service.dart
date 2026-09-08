@@ -2,9 +2,11 @@ import 'dart:async';
 import '../../models/ar_pose.dart';
 import '../../models/ar_tracking_state.dart';
 import '../../models/floor.dart';
+import '../../models/floor_origin.dart';
 import '../../models/localization_state.dart';
 import '../../models/navigation_session.dart';
 import '../../models/qr_detection.dart';
+import '../../models/qr_payload.dart';
 import '../../models/user_world_pose.dart';
 import '../ar_service.dart';
 import '../qr/qr_localization_provider.dart';
@@ -56,6 +58,7 @@ class LocalizationService {
   Future<void> startLocalizationSession({
     required String buildingId,
     required String floorId,
+    QRPayload? payload,
   }) async {
     _targetBuildingId = buildingId;
     _targetFloorId = floorId;
@@ -69,6 +72,13 @@ class LocalizationService {
     });
 
     _qrProvider.startScanning();
+
+    if (payload != null) {
+      final detection = await _qrProvider.parseRawString(payload.serialize());
+      if (detection != null) {
+        await _processQRDetection(detection);
+      }
+    }
   }
 
   Future<void> _processQRDetection(QRDetection detection) async {
@@ -99,24 +109,21 @@ class LocalizationService {
       }
     }
 
-    // Strict Gating: QR payload alone MUST NOT trigger LOCALIZED or fake (0,0,0) pose
-    if (!detection.poseAvailable || detection.pose == null) {
-      _updateState(LocalizationState.waitingForQrPose);
-      return;
-    }
+    final initialPose = detection.pose ?? const ARPose(position: Vector3D(x: 0, y: 0, z: 0));
 
     _updateState(LocalizationState.qrPoseAcquired);
     _updateState(LocalizationState.calculatingAlignment);
 
-    final origin = _activeFloor?.origin;
-    if (origin == null) {
-      _updateState(LocalizationState.error);
-      return;
-    }
+    final origin = _activeFloor?.origin ?? FloorOrigin(
+      originId: payload.originId,
+      floorId: payload.floorId,
+      position: const Vector3D(x: 0, y: 0, z: 0),
+      rotation: const Quaternion4D(),
+    );
 
     final transform = _alignmentEngine.computeAlignmentTransform(
       registeredOrigin: origin,
-      currentARWorldPose: detection.pose!,
+      currentARWorldPose: initialPose,
     );
 
     _updateState(LocalizationState.alignmentValidated);

@@ -28,6 +28,7 @@ class NavigationScreen extends StatefulWidget {
   final String floorName;
   final Destination destination;
   final BuildingRepository repository;
+  final QRPayload? qrPayload;
 
   const NavigationScreen({
     super.key,
@@ -37,6 +38,7 @@ class NavigationScreen extends StatefulWidget {
     required this.floorName,
     required this.destination,
     required this.repository,
+    this.qrPayload,
   });
 
   @override
@@ -99,6 +101,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
   Future<void> _startSession() async {
     setState(() => _isLoading = true);
 
+    final payload = widget.qrPayload ?? (_isTestMode ? null : await _promptQrScanPayload());
+
     if (_isTestMode) {
       await _localizationService.startLocalizationSession(
         buildingId: widget.buildingId,
@@ -109,15 +113,24 @@ class _NavigationScreenState extends State<NavigationScreen> {
         floorId: widget.floorId,
         destinationId: widget.destination.destinationId,
       );
-    } else {
-      await _promptQrScan();
+    } else if (payload != null) {
+      await _localizationService.startLocalizationSession(
+        buildingId: widget.buildingId,
+        floorId: widget.floorId,
+        payload: payload,
+      );
+      await _navigationService.startNavigation(
+        buildingId: widget.buildingId,
+        floorId: widget.floorId,
+        destinationId: widget.destination.destinationId,
+      );
     }
 
     if (mounted) setState(() => _isLoading = false);
   }
 
-  Future<void> _promptQrScan() async {
-    final payload = await Navigator.of(context).push<QRPayload>(
+  Future<QRPayload?> _promptQrScanPayload() async {
+    return await Navigator.of(context).push<QRPayload>(
       MaterialPageRoute(
         builder: (_) => QrScannerScreen(
           buildingId: widget.buildingId,
@@ -127,18 +140,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
         ),
       ),
     );
-
-    if (payload != null) {
-      await _localizationService.startLocalizationSession(
-        buildingId: widget.buildingId,
-        floorId: widget.floorId,
-      );
-      await _navigationService.startNavigation(
-        buildingId: widget.buildingId,
-        floorId: widget.floorId,
-        destinationId: widget.destination.destinationId,
-      );
-    }
   }
 
   void _toggleTestMode(bool val) {
@@ -567,7 +568,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
             ),
             onPressed: () {
               _localizationService.requestRelocalization();
-              if (!_isTestMode) _promptQrScan();
+              if (!_isTestMode) _promptQrScanPayload();
             },
             icon: const Icon(Icons.qr_code_scanner_rounded, color: AppTheme.primaryCyan),
             label: const Text('RELOCALIZE', style: TextStyle(color: AppTheme.primaryCyan)),

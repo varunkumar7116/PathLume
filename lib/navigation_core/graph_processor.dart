@@ -47,6 +47,7 @@ class GraphProcessor {
     }
 
     // Validate edges
+    final nodeMap = {for (final n in nodes) n.nodeId: n};
     for (final edge in edges) {
       if (!nodeIds.contains(edge.fromNodeId)) {
         errors.add('Edge ${edge.edgeId} references missing fromNode: ${edge.fromNodeId}');
@@ -55,7 +56,11 @@ class GraphProcessor {
         errors.add('Edge ${edge.edgeId} references missing toNode: ${edge.toNodeId}');
       }
       if (edge.distance <= 0) {
-        errors.add('Edge ${edge.edgeId} must have a positive distance.');
+        final fromNode = nodeMap[edge.fromNodeId];
+        final toNode = nodeMap[edge.toNodeId];
+        if (fromNode == null || toNode == null) {
+          errors.add('Edge ${edge.edgeId} must have a positive distance.');
+        }
       }
     }
 

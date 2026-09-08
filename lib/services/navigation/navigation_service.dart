@@ -112,6 +112,8 @@ class NavigationService {
       return false;
     }
 
+    developer.log('[PATHLUME_FIRESTORE] AST_ROUTE_STARTED targetNode=${_targetDestination!.nodeId}');
+
     final route = _pathfinder.findPath(
       graph: _activeGraph!,
       startNodeId: startNode.nodeId,
@@ -125,6 +127,8 @@ class NavigationService {
       return false;
     }
 
+    developer.log('[PATHLUME_FIRESTORE] AST_ROUTE_SUCCESS nodes=${route.pathNodes.length} dist=${route.totalDistance.toStringAsFixed(1)}m');
+
     _activeRoute = route;
     _currentWaypointIndex = 0;
     _arrivalCounter = 0;
@@ -137,6 +141,7 @@ class NavigationService {
     await _updateNativeARRendering();
     _notifyUpdate();
     return true;
+
   }
 
   void _handleLocalizationUpdate(NavigationSession locSession) {

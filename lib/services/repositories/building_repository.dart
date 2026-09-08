@@ -11,8 +11,10 @@ abstract class BuildingRepository {
 
   Future<List<Floor>> getFloorsForBuilding(String buildingId);
   Future<Floor?> getFloorById(String buildingId, String floorId);
+  Future<Floor?> getFloorByQrPayload(String payload);
   Future<void> saveFloor(Floor floor);
   Future<void> deleteFloor(String buildingId, String floorId);
+
 
   Future<NavigationGraph?> getGraphByFloorId(String buildingId, String floorId);
   Future<List<Destination>> getDestinations(String buildingId, String floorId);

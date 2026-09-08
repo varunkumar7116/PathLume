@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../app/app_theme.dart';
 import '../../../models/destination.dart';
+import '../../../models/qr_payload.dart';
 import '../../../services/repositories/building_repository.dart';
 import 'navigation_screen.dart';
 
@@ -10,6 +11,7 @@ class DestinationSelectionScreen extends StatefulWidget {
   final String buildingName;
   final String floorName;
   final BuildingRepository repository;
+  final QRPayload? qrPayload;
 
   const DestinationSelectionScreen({
     super.key,
@@ -18,6 +20,7 @@ class DestinationSelectionScreen extends StatefulWidget {
     required this.buildingName,
     required this.floorName,
     required this.repository,
+    this.qrPayload,
   });
 
   @override
@@ -192,6 +195,7 @@ class _DestinationSelectionScreenState extends State<DestinationSelectionScreen>
                               floorName: widget.floorName,
                               destination: destination,
                               repository: widget.repository,
+                              qrPayload: widget.qrPayload,
                             ),
                           ),
                         );

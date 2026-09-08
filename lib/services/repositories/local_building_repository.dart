@@ -5,7 +5,9 @@ import '../../models/building.dart';
 import '../../models/destination.dart';
 import '../../models/floor.dart';
 import '../../models/navigation_graph.dart';
+import '../../models/qr_payload.dart';
 import 'building_repository.dart';
+
 
 class LocalBuildingRepository implements BuildingRepository {
   final Directory? _overrideDirectory;
@@ -160,6 +162,15 @@ class LocalBuildingRepository implements BuildingRepository {
       return _memoryFloors[buildingId]?[floorId];
     }
   }
+
+  @override
+  Future<Floor?> getFloorByQrPayload(String payload) async {
+    final qrPayload = QRPayload.deserialize(payload);
+    if (qrPayload == null) return null;
+    final floor = await getFloorById(qrPayload.buildingId, qrPayload.floorId);
+    return floor;
+  }
+
 
   @override
   Future<void> saveFloor(Floor floor) async {

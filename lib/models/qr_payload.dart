@@ -81,6 +81,42 @@ class QRPayload {
       }
     }
 
+    if (trimmed.contains('/')) {
+      final parts = trimmed.split('/');
+      if (parts.length == 2 && parts[0].trim().isNotEmpty && parts[1].trim().isNotEmpty) {
+        return QRPayload(
+          buildingId: parts[0].trim(),
+          floorId: parts[1].trim(),
+          originId: 'origin',
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+        );
+      }
+    }
+
+    if (trimmed.contains('|') && !trimmed.startsWith('PATHLUME_V1|')) {
+      final parts = trimmed.split('|');
+      if (parts.length >= 2 && parts[0].trim().isNotEmpty && parts[1].trim().isNotEmpty) {
+        return QRPayload(
+          buildingId: parts[0].trim(),
+          floorId: parts[1].trim(),
+          originId: parts.length >= 3 ? parts[2].trim() : 'origin',
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+        );
+      }
+    }
+
+    if (trimmed.contains('-') && !trimmed.contains('|') && !trimmed.contains('/') && !trimmed.contains(':')) {
+      final parts = trimmed.split('-');
+      if (parts.length == 2 && parts[0].trim().isNotEmpty && parts[1].trim().isNotEmpty) {
+        return QRPayload(
+          buildingId: parts[0].trim(),
+          floorId: parts[1].trim(),
+          originId: 'origin',
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+        );
+      }
+    }
+
     return null;
   }
 

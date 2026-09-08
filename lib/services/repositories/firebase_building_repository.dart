@@ -5,9 +5,11 @@ import '../../models/building.dart';
 import '../../models/destination.dart';
 import '../../models/floor.dart';
 import '../../models/navigation_graph.dart';
+import '../../models/qr_payload.dart';
 import '../../navigation_core/graph_validator.dart';
 import 'building_repository.dart';
 import 'local_building_repository.dart';
+
 
 class FirebaseBuildingRepository implements BuildingRepository {
   final FirebaseFirestore? _explicitFirestore;
@@ -191,7 +193,83 @@ class FirebaseBuildingRepository implements BuildingRepository {
   }
 
   @override
-  Future<void> saveFloor(Floor floor) async {
+  Future<Floor?> getFloorByQrPayload(String payload) async {
+    developer.log('[PATHLUME_FIRESTORE] QR_RETRIEVAL_STARTED');
+    developer.log('[PATHLUME_FIRESTORE] QR_PAYLOAD=$payload');
+
+    final qrPayload = QRPayload.deserialize(payload);
+    if (qrPayload == null) {
+      developer.log('[PATHLUME_FIRESTORE] QR_DESERIALIZATION_FAILED');
+      return null;
+    }
+
+    final docPath = 'buildings/${qrPayload.buildingId}/floors/${qrPayload.floorId}';
+    developer.log('[PATHLUME_FIRESTORE] DOCUMENT_PATH=$docPath');
+
+    // Fast Path 1: Check local cache first for sub-millisecond instant retrieval
+    final localFloor = await _localFallback.getFloorByQrPayload(payload);
+    if (localFloor != null) {
+      developer.log('[PATHLUME_FIRESTORE] FAST_LOCAL_CACHE_HIT floorId=${localFloor.floorId}');
+      developer.log('[PATHLUME_FIRESTORE] BUILDING_ID=${localFloor.buildingId}');
+      developer.log('[PATHLUME_FIRESTORE] FLOOR_ID=${localFloor.floorId}');
+      developer.log('[PATHLUME_FIRESTORE] NODE_COUNT=${localFloor.nodes.length}');
+      developer.log('[PATHLUME_FIRESTORE] EDGE_COUNT=${localFloor.edges.length}');
+      developer.log('[PATHLUME_FIRESTORE] DESTINATION_COUNT=${localFloor.destinations.length}');
+      developer.log('[PATHLUME_FIRESTORE] QR_RETRIEVAL_SUCCESS');
+      developer.log('[PATHLUME_FIRESTORE] GRAPH_DESERIALIZATION_SUCCESS');
+      developer.log('[PATHLUME_FIRESTORE] DESTINATIONS_LOADED');
+      return localFloor;
+    }
+
+    // Fast Path 2: Fetch from Firestore (try SDK cache first, then cloud server)
+    try {
+      final fRef = _floorsRef(qrPayload.buildingId);
+      if (fRef == null) throw Exception('Firebase uninitialized');
+
+      DocumentSnapshot<Map<String, dynamic>>? doc;
+
+      // Try local Firestore SDK cache
+      try {
+        final cacheDoc = await fRef.doc(qrPayload.floorId).get(const GetOptions(source: Source.cache));
+        if (cacheDoc.exists && cacheDoc.data() != null) {
+          doc = cacheDoc;
+          developer.log('[PATHLUME_FIRESTORE] FIRESTORE_SDK_CACHE_HIT');
+        }
+      } catch (_) {}
+
+      // If not in cache, fetch from Firestore cloud server
+      if (doc == null || !doc.exists) {
+        doc = await fRef.doc(qrPayload.floorId).get(const GetOptions(source: Source.server)).timeout(const Duration(seconds: 3, milliseconds: 500));
+      }
+
+      if (!doc.exists || doc.data() == null) {
+        developer.log('[PATHLUME_FIRESTORE] QR_RETRIEVAL_FAILED: Document not found in cloud');
+        return null;
+      }
+
+      final data = doc.data()!;
+      final floor = Floor.fromJson(data);
+
+      developer.log('[PATHLUME_FIRESTORE] QR_RETRIEVAL_SUCCESS');
+      developer.log('[PATHLUME_FIRESTORE] BUILDING_ID=${floor.buildingId}');
+      developer.log('[PATHLUME_FIRESTORE] FLOOR_ID=${floor.floorId}');
+      developer.log('[PATHLUME_FIRESTORE] NODE_COUNT=${floor.nodes.length}');
+      developer.log('[PATHLUME_FIRESTORE] EDGE_COUNT=${floor.edges.length}');
+      developer.log('[PATHLUME_FIRESTORE] DESTINATION_COUNT=${floor.destinations.length}');
+      developer.log('[PATHLUME_FIRESTORE] GRAPH_DESERIALIZATION_SUCCESS');
+      developer.log('[PATHLUME_FIRESTORE] DESTINATIONS_LOADED');
+
+      await _localFallback.saveFloor(floor);
+      return floor;
+    } catch (e) {
+      developer.log('[PATHLUME_FIRESTORE] QR_RETRIEVAL_ERROR error=$e');
+      return await _localFallback.getFloorByQrPayload(payload);
+    }
+  }
+
+
+  @override
+  Future<void> saveFloor(Floor floor, {bool rethrowCloudErrors = false}) async {
     // 1. Validate graph first
     final graph = NavigationGraph(
       floorId: floor.floorId,
@@ -221,10 +299,34 @@ class FirebaseBuildingRepository implements BuildingRepository {
     await _localFallback.saveFloor(updatedFloor);
 
     try {
-      developer.log('PATHLUME_DATA SAVE_FLOOR_START floorId=${floor.floorId} status=$targetStatus nodes=${floor.nodes.length} edges=${floor.edges.length}');
-      final fRef = _floorsRef(floor.buildingId);
-      if (fRef == null) throw Exception('Firebase uninitialized');
+      developer.log('[PATHLUME_FIRESTORE] SAVE_ROUTE_STARTED');
+      developer.log('[PATHLUME_FIRESTORE] BUILDING_ID=${floor.buildingId}');
+      developer.log('[PATHLUME_FIRESTORE] FLOOR_ID=${floor.floorId}');
+      developer.log('[PATHLUME_FIRESTORE] QR_PAYLOAD=${updatedFloor.qrPayload}');
+      developer.log('[PATHLUME_FIRESTORE] NODE_COUNT=${floor.nodes.length}');
+      developer.log('[PATHLUME_FIRESTORE] EDGE_COUNT=${floor.edges.length}');
+      developer.log('[PATHLUME_FIRESTORE] DESTINATION_COUNT=${floor.destinations.length}');
+      developer.log('[PATHLUME_FIRESTORE] DOCUMENT_PATH=buildings/${floor.buildingId}/floors/${floor.floorId}');
+      developer.log('[PATHLUME_FIRESTORE] WRITE_STARTED');
 
+      final bRef = _buildingsRef;
+      final fRef = _floorsRef(floor.buildingId);
+      if (bRef == null || fRef == null) throw Exception('Firebase uninitialized');
+
+      // 1. Create / update parent building document first
+      final existingBuilding = await _localFallback.getBuildingById(floor.buildingId);
+      final buildingName = existingBuilding?.name ?? 'Building ${floor.buildingId}';
+
+      await bRef.doc(floor.buildingId).set({
+        'buildingId': floor.buildingId,
+        'name': buildingName,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)).timeout(const Duration(seconds: 5));
+
+      developer.log('[PATHLUME_FIRESTORE] PARENT_BUILDING_WRITE_SUCCESS: buildings/${floor.buildingId}');
+
+      // 2. Create / update floor document
       final jsonMap = updatedFloor.toJson();
       jsonMap['updatedAt'] = FieldValue.serverTimestamp();
       if (floor.createdAt == null) {
@@ -236,12 +338,40 @@ class FirebaseBuildingRepository implements BuildingRepository {
           .set(jsonMap, SetOptions(merge: true))
           .timeout(const Duration(seconds: 5));
 
-      developer.log('PATHLUME_DATA SAVE_FLOOR_SUCCESS floorId=${floor.floorId} status=$targetStatus');
-    } catch (e) {
-      developer.log('PATHLUME_DATA SAVE_FLOOR_FIRESTORE_ERROR floorId=${floor.floorId} error=$e');
-      // Local fallback preserved
+      developer.log('[PATHLUME_FIRESTORE] WRITE_SUCCESS');
+    } catch (e, stack) {
+      developer.log('[PATHLUME_FIRESTORE] WRITE_FAILED: $e');
+      developer.log('[PATHLUME_FIRESTORE] STACK: $stack');
+      if (rethrowCloudErrors) {
+        rethrow;
+      }
+    }
+
+  }
+
+  Future<void> testFirestoreConnection() async {
+    final db = _firestore;
+    if (db == null) {
+      developer.log('[PATHLUME_FIRESTORE] TEST_WRITE_FAILED: Firebase uninitialized');
+      return;
+    }
+    try {
+      developer.log('[PATHLUME_FIRESTORE] TEST_WRITE_STARTED');
+      await db.collection('_pathlume_test').doc('connection').set({
+        'message': 'PATHLUME Firestore connection successful',
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      developer.log('[PATHLUME_FIRESTORE] TEST_WRITE_SUCCESS');
+    } catch (e, stack) {
+      developer.log('[PATHLUME_FIRESTORE] TEST_WRITE_FAILED: $e');
+      developer.log('[PATHLUME_FIRESTORE] STACK: $stack');
+      rethrow;
     }
   }
+
+
+
+
 
   @override
   Future<void> deleteFloor(String buildingId, String floorId) async {

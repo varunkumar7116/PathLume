@@ -7,8 +7,8 @@ import '../../../services/repositories/firebase_building_repository.dart';
 import '../../ar/presentation/ar_test_screen.dart';
 import '../../building/presentation/building_detail_screen.dart';
 import '../../building/presentation/create_building_screen.dart';
-import '../../localization/presentation/localization_screen.dart';
 import '../../localization/presentation/qr_scanner_screen.dart';
+import '../../navigation/presentation/destination_selection_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final BuildingRepository? repository;
@@ -54,16 +54,24 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (payload != null && mounted) {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => LocalizationScreen(
-            buildingId: payload.buildingId,
-            floorId: payload.floorId,
-            repository: _repository,
+      final building = await _repository.getBuildingById(payload.buildingId);
+      final floor = await _repository.getFloorById(payload.buildingId, payload.floorId);
+
+      if (mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => DestinationSelectionScreen(
+              buildingId: payload.buildingId,
+              floorId: payload.floorId,
+              buildingName: building?.name ?? payload.buildingId,
+              floorName: floor?.name ?? payload.floorId,
+              repository: _repository,
+              qrPayload: payload,
+            ),
           ),
-        ),
-      );
-      _loadBuildings();
+        );
+        _loadBuildings();
+      }
     }
   }
 

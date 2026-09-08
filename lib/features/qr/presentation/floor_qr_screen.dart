@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../app/app_theme.dart';
 import '../../../models/floor.dart';
@@ -15,12 +16,12 @@ class FloorQrScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final payloadString = floor.origin?.qrCodePayload ??
-        'PATHLUME_V1|${floor.buildingId}|${floor.floorId}|${floor.origin?.originId ?? "origin_001"}';
+    final payloadString = floor.qrPayload;
+    final shortRouteCode = '${floor.buildingId}/${floor.floorId}';
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Floor QR Code'),
+        title: const Text('Floor QR & Unique Route Code'),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -45,79 +46,171 @@ class FloorQrScreen extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
+
+              // High contrast QR Code card optimized for camera scanning
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.primaryCyan.withValues(alpha: 0.3),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                    )
-                  ],
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppTheme.primaryCyan, width: 2),
                 ),
                 child: QrImageView(
                   data: payloadString,
                   version: QrVersions.auto,
-                  size: 220.0,
+                  errorCorrectionLevel: QrErrorCorrectLevel.M,
+                  size: 240.0,
                   backgroundColor: Colors.white,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
+
+              // Unique Route Access Code Card
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
                   color: AppTheme.cardDark,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white12),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppTheme.primaryCyan.withValues(alpha: 0.5), width: 1.5),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'ORIGIN METADATA',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryCyan,
-                        letterSpacing: 1.0,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.vpn_key_rounded, color: AppTheme.primaryCyan, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              'UNIQUE ROUTE CODE',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryCyan,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.greenAccent, width: 1),
+                          ),
+                          child: const Text(
+                            'CLOUD ACTIVE',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.greenAccent,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Display short Unique Route ID
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Navigation Unique ID:',
+                                style: TextStyle(color: Colors.white54, fontSize: 11),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                shortRouteCode,
+                                style: const TextStyle(
+                                  color: Colors.amberAccent,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryCyan,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: shortRouteCode));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Copied Unique Route Code "$shortRouteCode" to clipboard!'),
+                                  backgroundColor: Colors.green.shade800,
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.copy_rounded, size: 16),
+                            label: const Text('COPY ID', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
+
+                    const SizedBox(height: 12),
                     Text(
-                      'Origin ID: ${floor.origin?.originId ?? "Not set"}',
+                      'Building: $buildingName (${floor.buildingId})',
                       style: const TextStyle(color: Colors.white70, fontSize: 13),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
-                      'Payload: $payloadString',
+                      'Floor: ${floor.name} (${floor.floorId})',
+                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Full Payload: $payloadString',
                       style: const TextStyle(
                         color: Colors.white54,
-                        fontSize: 11,
+                        fontSize: 10,
                         fontFamily: 'monospace',
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 32),
+
+              const SizedBox(height: 24),
               Row(
                 children: [
                   Expanded(
                     child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.cardDark,
+                        foregroundColor: Colors.white,
+                      ),
                       onPressed: () {
+                        Clipboard.setData(ClipboardData(text: payloadString));
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('QR Code saved to local app gallery.'),
+                            content: Text('Copied full QR payload to clipboard.'),
                           ),
                         );
                       },
-                      icon: const Icon(Icons.download_rounded),
-                      label: const Text('SAVE QR'),
+                      icon: const Icon(Icons.copy_all_rounded, size: 18),
+                      label: const Text('COPY PAYLOAD', style: TextStyle(fontSize: 12)),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -129,12 +222,12 @@ class FloorQrScreen extends StatelessWidget {
                       onPressed: () {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Sharing Floor QR: $payloadString'),
+                            content: Text('Route Access Code: $shortRouteCode\nPayload: $payloadString'),
                           ),
                         );
                       },
-                      icon: const Icon(Icons.share_rounded, color: AppTheme.primaryCyan),
-                      label: const Text('SHARE', style: TextStyle(color: AppTheme.primaryCyan)),
+                      icon: const Icon(Icons.share_rounded, color: AppTheme.primaryCyan, size: 18),
+                      label: const Text('SHARE', style: TextStyle(color: AppTheme.primaryCyan, fontSize: 12)),
                     ),
                   ),
                 ],

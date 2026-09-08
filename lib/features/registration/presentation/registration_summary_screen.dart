@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../app/app_theme.dart';
+import '../../../models/ar_pose.dart';
 import '../../../models/floor.dart';
+import '../../../models/floor_origin.dart';
 import '../../../navigation_core/graph_validator.dart';
 import '../../../navigation_core/registration_engine.dart';
 import '../../../services/repositories/building_repository.dart';
+import '../../../services/repositories/firebase_building_repository.dart';
 
 import '../../qr/presentation/floor_qr_screen.dart';
 
@@ -67,12 +70,24 @@ class _RegistrationSummaryScreenState extends State<RegistrationSummaryScreen> {
       final targetStatus = _validationResult.isValid ? 'ready' : (forceSaveDraft ? 'draft' : 'error');
 
       final existingFloor = await widget.repository.getFloorById(widget.buildingId, widget.floorId);
+      final originId = widget.engine.origin?.originId ?? existingFloor?.originId ?? 'O001';
+      final qrPayloadStr = 'PATHLUME_V1|${widget.buildingId}|${widget.floorId}|$originId';
+
+      final finalOrigin = FloorOrigin(
+        originId: originId,
+        floorId: widget.floorId,
+        position: widget.engine.origin?.position ?? existingFloor?.origin?.position ?? const Vector3D(),
+        rotation: widget.engine.origin?.rotation ?? existingFloor?.origin?.rotation ?? const Quaternion4D(),
+        qrCodePayload: qrPayloadStr,
+        createdAt: widget.engine.origin?.createdAt ?? existingFloor?.origin?.createdAt ?? DateTime.now(),
+      );
+
       final updatedFloor = Floor(
         floorId: existingFloor?.floorId ?? widget.floorId,
         buildingId: existingFloor?.buildingId ?? widget.buildingId,
         floorNumber: existingFloor?.floorNumber ?? 1,
         name: existingFloor?.name ?? 'Floor ${widget.floorId}',
-        origin: widget.engine.origin ?? existingFloor?.origin,
+        origin: finalOrigin,
         nodes: widget.engine.capturedNodes,
         edges: widget.engine.capturedEdges,
         destinations: widget.engine.capturedDestinations,
@@ -82,7 +97,12 @@ class _RegistrationSummaryScreenState extends State<RegistrationSummaryScreen> {
         version: existingFloor?.version ?? 1,
       );
 
-      await widget.repository.saveFloor(updatedFloor);
+      if (widget.repository is FirebaseBuildingRepository) {
+        await (widget.repository as FirebaseBuildingRepository)
+            .saveFloor(updatedFloor, rethrowCloudErrors: true);
+      } else {
+        await widget.repository.saveFloor(updatedFloor);
+      }
 
       if (!mounted) return;
 
@@ -91,7 +111,7 @@ class _RegistrationSummaryScreenState extends State<RegistrationSummaryScreen> {
           backgroundColor: _validationResult.isValid ? Colors.green : Colors.orange,
           content: Text(
             _validationResult.isValid
-                ? 'Floor navigation graph saved and marked READY!'
+                ? 'Route Saved Successfully! Floor marked READY.'
                 : 'Floor saved as DRAFT. Add destinations to make navigation-ready.',
           ),
         ),
@@ -123,12 +143,19 @@ class _RegistrationSummaryScreenState extends State<RegistrationSummaryScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: Colors.redAccent,
-            content: Text('Failed to save route: $e'),
+            duration: const Duration(seconds: 6),
+            content: Text('Failed to save route to cloud: $e'),
+            action: SnackBarAction(
+              label: 'RETRY',
+              textColor: Colors.white,
+              onPressed: () => _processAndSave(forceSaveDraft: forceSaveDraft, generateQr: generateQr),
+            ),
           ),
         );
       }
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

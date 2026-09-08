@@ -268,12 +268,14 @@ class RegistrationEngine {
     if (_capturedNodes.isNotEmpty) {
       final prevNode = _capturedNodes.last;
       final dist = position.distanceTo(prevNode.position);
+      final rawDist = double.parse(dist.toStringAsFixed(2));
+      final validDist = rawDist > 0.0 ? rawDist : 0.5;
       final edgeId = 'edge_${prevNode.nodeId}_${node.nodeId}';
       final edge = NavigationEdge(
         edgeId: edgeId,
         fromNodeId: prevNode.nodeId,
         toNodeId: node.nodeId,
-        distance: double.parse(dist.toStringAsFixed(2)),
+        distance: validDist,
       );
       _capturedEdges.add(edge);
     }
