@@ -81,6 +81,14 @@ class ARRenderer : GLSurfaceView.Renderer {
 
     fun setSession(arSession: Session?) {
         this.session = arSession
+        if (isTextureInitialized && textureId != -1 && arSession != null) {
+            try {
+                arSession.setCameraTextureName(textureId)
+                android.util.Log.i("PATHLUME_AR", "PATHLUME_AR setCameraTextureName applied in setSession textureId=$textureId")
+            } catch (t: Throwable) {
+                android.util.Log.e("PATHLUME_AR", "Failed to setCameraTextureName in setSession", t)
+            }
+        }
     }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
@@ -230,48 +238,52 @@ class ARRenderer : GLSurfaceView.Renderer {
             // Render live camera background feed
             drawCameraBackground(frame)
 
-            val camera = frame.camera
-            if (camera.trackingState == com.google.ar.core.TrackingState.TRACKING || camera.trackingState == com.google.ar.core.TrackingState.PAUSED) {
-                camera.getProjectionMatrix(projectionMatrix, 0, 0.1f, 100.0f)
-                camera.getViewMatrix(viewMatrix, 0)
+            try {
+                val camera = frame.camera
+                if (camera.trackingState == com.google.ar.core.TrackingState.TRACKING || camera.trackingState == com.google.ar.core.TrackingState.PAUSED) {
+                    camera.getProjectionMatrix(projectionMatrix, 0, 0.1f, 100.0f)
+                    camera.getViewMatrix(viewMatrix, 0)
 
-                val anchors = ArrayList(activeAnchors)
-                if (anchors.size != lastLoggedAnchorCount) {
-                    lastLoggedAnchorCount = anchors.size
-                    android.util.Log.i("PATHLUME_AR", "PATHLUME_AR RENDERER_ANCHOR_UPDATED count=${anchors.size} tracking=${camera.trackingState.name}")
-                }
+                    val anchors = ArrayList(activeAnchors)
+                    if (anchors.size != lastLoggedAnchorCount) {
+                        lastLoggedAnchorCount = anchors.size
+                        android.util.Log.i("PATHLUME_AR", "PATHLUME_AR RENDERER_ANCHOR_UPDATED count=${anchors.size} tracking=${camera.trackingState.name}")
+                    }
 
-                val anchorPositions = mutableListOf<FloatArray>()
+                    val anchorPositions = mutableListOf<FloatArray>()
 
-                // Render active spatial anchors (3D Diamond Beacons)
-                for (anchor in anchors) {
-                    if (anchor.trackingState != com.google.ar.core.TrackingState.STOPPED) {
-                        val pose = anchor.pose
-                        pose.toMatrix(modelMatrix, 0)
-                        anchorPositions.add(floatArrayOf(pose.tx(), pose.ty(), pose.tz()))
+                    // Render active spatial anchors (3D Diamond Beacons)
+                    for (anchor in anchors) {
+                        if (anchor.trackingState != com.google.ar.core.TrackingState.STOPPED) {
+                            val pose = anchor.pose
+                            pose.toMatrix(modelMatrix, 0)
+                            anchorPositions.add(floatArrayOf(pose.tx(), pose.ty(), pose.tz()))
 
-                        Matrix.multiplyMM(modelViewProjectionMatrix, 0, viewMatrix, 0, modelMatrix, 0)
-                        Matrix.multiplyMM(modelViewProjectionMatrix, 0, projectionMatrix, 0, modelViewProjectionMatrix, 0)
+                            Matrix.multiplyMM(modelViewProjectionMatrix, 0, viewMatrix, 0, modelMatrix, 0)
+                            Matrix.multiplyMM(modelViewProjectionMatrix, 0, projectionMatrix, 0, modelViewProjectionMatrix, 0)
 
-                        drawBeaconNode(modelViewProjectionMatrix, pose.tx(), pose.ty(), pose.tz())
+                            drawBeaconNode(modelViewProjectionMatrix, pose.tx(), pose.ty(), pose.tz())
+                        }
+                    }
+
+                    // Render broad 3D board line ribbon connecting consecutive anchors
+                    if (anchorPositions.size >= 2) {
+                        drawBroadPathRibbon(anchorPositions, floatArrayOf(0.0f, 1.0f, 0.5f, 0.9f))
+                    }
+
+                    // Render 3D Active Navigation Route (Broad Ribbon Path + Directional Arrows + Destination Marker)
+                    val routeSnapshot = navigationRoutePoints
+                    val destSnapshot = destinationPoint
+                    if (routeSnapshot.size >= 2) {
+                        drawBroadPathRibbon(routeSnapshot, floatArrayOf(0.0f, 0.9f, 1.0f, 0.95f))
+                        drawDirectionalArrows(routeSnapshot)
+                    }
+                    destSnapshot?.let { dest ->
+                        drawDestinationMarker(dest)
                     }
                 }
-
-                // Render broad 3D board line ribbon connecting consecutive anchors
-                if (anchorPositions.size >= 2) {
-                    drawBroadPathRibbon(anchorPositions, floatArrayOf(0.0f, 1.0f, 0.5f, 0.9f))
-                }
-
-                // Render 3D Active Navigation Route (Broad Ribbon Path + Directional Arrows + Destination Marker)
-                val routeSnapshot = navigationRoutePoints
-                val destSnapshot = destinationPoint
-                if (routeSnapshot.size >= 2) {
-                    drawBroadPathRibbon(routeSnapshot, floatArrayOf(0.0f, 0.9f, 1.0f, 0.95f))
-                    drawDirectionalArrows(routeSnapshot)
-                }
-                destSnapshot?.let { dest ->
-                    drawDestinationMarker(dest)
-                }
+            } catch (renderError: Exception) {
+                android.util.Log.e("PATHLUME_AR", "PATHLUME_AR 3D_OBJECT_RENDER_ERROR frame=$frameCount", renderError)
             }
         } catch (e: Exception) {
             android.util.Log.e("PATHLUME_AR", "PATHLUME_AR FRAME_UPDATE_ERROR frame=$frameCount", e)
@@ -376,6 +388,10 @@ class ARRenderer : GLSurfaceView.Renderer {
 
         val vpMatrix = FloatArray(16)
         Matrix.multiplyMM(vpMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
+
+        GLES20.glDisable(GLES20.GL_CULL_FACE)
+        GLES20.glEnable(GLES20.GL_BLEND)
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
 
         GLES20.glUseProgram(programHandle)
 

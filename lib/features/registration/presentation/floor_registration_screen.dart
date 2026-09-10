@@ -133,6 +133,20 @@ class _FloorRegistrationScreenState extends State<FloorRegistrationScreen> {
   }
 
   void _handleAddNode() async {
+    if (_trackingState != ARTrackingState.tracking) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('AR tracking is not ready. Move camera slowly until tracking stabilizes.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
     // 1. Send native marker anchor request (Exact AR TEST mechanism)
     final anchorSuccess = await _arService.placeTestMarker();
     if (anchorSuccess) {

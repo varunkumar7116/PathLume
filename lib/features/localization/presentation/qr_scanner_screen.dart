@@ -180,7 +180,10 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
       await Future.delayed(const Duration(milliseconds: 50));
 
       if (mounted) {
-        Navigator.of(context).pop(payload);
+        await _controller.stop();
+        if (mounted) {
+          Navigator.of(context).pop(payload);
+        }
       }
     } catch (e) {
       if (mounted) {

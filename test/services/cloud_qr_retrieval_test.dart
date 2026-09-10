@@ -166,7 +166,7 @@ void main() {
       expect(fetchedFloor, isNull);
     });
 
-    test('QR and route metadata mismatch returns null', () async {
+    test('QR payload lookup matches buildingId and floorId even if originId differs', () async {
       const validPayloadStr = 'PATHLUME_V1|B001|F001|O001';
       final origin = FloorOrigin(
         originId: 'O001',
@@ -193,7 +193,8 @@ void main() {
       const mismatchPayloadStr = 'PATHLUME_V1|B001|F001|O999';
       final fetchedFloor = await firebaseRepo.getFloorByQrPayload(mismatchPayloadStr);
 
-      expect(fetchedFloor, isNull);
+      expect(fetchedFloor, isNotNull);
+      expect(fetchedFloor!.floorId, 'F001');
     });
 
     test('GraphValidator validates downloaded cloud graph', () async {

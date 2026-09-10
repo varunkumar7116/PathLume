@@ -53,7 +53,11 @@ class ARCoreManager(private val context: Context) {
                 session.configure(config)
                 renderer.setSession(session)
             }
-            val resumed = sessionManager.resumeSession()
+            var resumed = sessionManager.resumeSession()
+            if (!resumed) {
+                try { Thread.sleep(250) } catch (_: Throwable) {}
+                resumed = sessionManager.resumeSession()
+            }
             if (!resumed) return false
 
             renderer.onFrameUpdateListener = { frame, session ->

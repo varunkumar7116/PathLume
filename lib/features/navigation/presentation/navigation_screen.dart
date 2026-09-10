@@ -56,6 +56,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   NavigationSession? _session;
   StreamSubscription<NavigationSession>? _navSessionSub;
+  StreamSubscription<LocalizationState>? _locStateSub;
 
   @override
   void initState() {
@@ -66,6 +67,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   void _initServices() {
     _navSessionSub?.cancel();
+    _locStateSub?.cancel();
+
     if (_isTestMode) {
       _arService = SimulatedARService();
       _qrProvider = SimulatedQRLocalizationProvider(
@@ -96,6 +99,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
         });
       }
     });
+
+    _locStateSub = _localizationService.stateStream.listen((locState) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
 
   Future<void> _startSession() async {
@@ -103,28 +112,17 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
     final payload = widget.qrPayload ?? (_isTestMode ? null : await _promptQrScanPayload());
 
-    if (_isTestMode) {
-      await _localizationService.startLocalizationSession(
-        buildingId: widget.buildingId,
-        floorId: widget.floorId,
-      );
-      await _navigationService.startNavigation(
-        buildingId: widget.buildingId,
-        floorId: widget.floorId,
-        destinationId: widget.destination.destinationId,
-      );
-    } else if (payload != null) {
-      await _localizationService.startLocalizationSession(
-        buildingId: widget.buildingId,
-        floorId: widget.floorId,
-        payload: payload,
-      );
-      await _navigationService.startNavigation(
-        buildingId: widget.buildingId,
-        floorId: widget.floorId,
-        destinationId: widget.destination.destinationId,
-      );
-    }
+    await _localizationService.startLocalizationSession(
+      buildingId: widget.buildingId,
+      floorId: widget.floorId,
+      payload: payload,
+    );
+
+    await _navigationService.startNavigation(
+      buildingId: widget.buildingId,
+      floorId: widget.floorId,
+      destinationId: widget.destination.destinationId,
+    );
 
     if (mounted) setState(() => _isLoading = false);
   }
@@ -155,6 +153,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   @override
   void dispose() {
     _navSessionSub?.cancel();
+    _locStateSub?.cancel();
     _navigationService.dispose();
     _localizationService.dispose();
     super.dispose();
@@ -232,34 +231,37 @@ class _NavigationScreenState extends State<NavigationScreen> {
             ),
           ],
         ),
-        body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : Stack(
-                children: [
-                  _buildARView(),
-                  SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20.0),
-                      child: Column(
-                        children: [
-                          if (_isTestMode) _buildSimulationBadge(),
-                          if (_session?.navigationState == NavigationState.relocalizing)
-                            _buildTrackingPausedWarning(),
-                          _buildTurnInstructionHeader(),
-                          const SizedBox(height: 16),
-                          _buildNavigationStateCard(),
-                          const Spacer(),
-                          if (_session?.navigationState == NavigationState.arrived)
-                            _buildArrivalBanner(),
-                          if (_isTestMode) _buildSimulatedMovementControl(),
-                          const SizedBox(height: 16),
-                          _buildBottomControls(),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+        body: Stack(
+          children: [
+            _buildARView(),
+            if (_isLoading)
+              Container(
+                color: Colors.black87,
+                child: const Center(child: CircularProgressIndicator()),
               ),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  children: [
+                    if (_isTestMode) _buildSimulationBadge(),
+                    if (_session?.navigationState == NavigationState.relocalizing)
+                      _buildTrackingPausedWarning(),
+                    _buildTurnInstructionHeader(),
+                    const SizedBox(height: 16),
+                    _buildNavigationStateCard(),
+                    const Spacer(),
+                    if (_session?.navigationState == NavigationState.arrived)
+                      _buildArrivalBanner(),
+                    if (_isTestMode) _buildSimulatedMovementControl(),
+                    const SizedBox(height: 16),
+                    _buildBottomControls(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

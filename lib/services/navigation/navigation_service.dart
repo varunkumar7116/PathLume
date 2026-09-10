@@ -154,10 +154,9 @@ class NavigationService {
     }
 
     // Check tracking state gating
-    if (locSession.localizationState == LocalizationState.lost ||
-        locSession.confidence == LocalizationConfidence.unknown) {
+    if (locSession.localizationState == LocalizationState.lost) {
       if (_navigationState != NavigationState.relocalizing) {
-        _log('ARCore tracking lost or confidence unknown — transitioning to RELOCALIZING state');
+        _log('ARCore tracking lost — transitioning to RELOCALIZING state');
         _navigationState = NavigationState.relocalizing;
       }
       _notifyUpdate();

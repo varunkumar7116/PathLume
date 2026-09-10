@@ -70,11 +70,15 @@ class ARSessionManager(private val context: Context) {
         return try {
             val session = arSession
             if (session != null) {
-                val config = session.config
-                config.focusMode = Config.FocusMode.AUTO
-                session.configure(config)
-                Log.i(TAG, "PATHLUME_AR CAMERA_FOCUS_CONFIGURED_ON_RESUME focusMode=AUTO")
                 session.resume()
+                try {
+                    val config = session.config
+                    config.focusMode = Config.FocusMode.AUTO
+                    session.configure(config)
+                    Log.i(TAG, "PATHLUME_AR CAMERA_FOCUS_CONFIGURED_ON_RESUME focusMode=AUTO")
+                } catch (e: Exception) {
+                    Log.w(TAG, "PATHLUME_AR CAMERA_FOCUS_CONFIG_FAILED_ON_RESUME", e)
+                }
                 Log.i(TAG, "PATHLUME_AR CAMERA_SESSION_RESUMED")
             }
             true

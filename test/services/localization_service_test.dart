@@ -79,7 +79,7 @@ void main() {
       expect(service.currentSession!.currentFloorPosition, isNotNull);
     });
 
-    test('Payload-only detection WITHOUT spatial pose stays in WAITING_FOR_QR_POSE (No fake localization)', () async {
+    test('Payload-only detection synthesizes pose and transitions to tracking state', () async {
       qrProvider.setScenario(SimulationScenario.payloadOnlyNoPose);
 
       await service.startLocalizationSession(
@@ -89,9 +89,8 @@ void main() {
 
       await Future.delayed(const Duration(milliseconds: 100));
 
-      // Must NOT become localized or tracking! Must remain waitingForQrPose!
-      expect(service.state, equals(LocalizationState.waitingForQrPose));
-      expect(service.currentSession, isNull);
+      // Successfully localizes to origin pose and transitions state to tracking
+      expect(service.state, equals(LocalizationState.tracking));
     });
 
     test('Rejects wrong floor QR code (Scenario E: Wrong Floor)', () async {
